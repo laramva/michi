@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Michi 道 — Japonês do zero ao avançado</title>
+  <meta name="description" content="Curso completo e gratuito de japonês do zero ao avançado, com prática de fala, escrita, leitura e escuta. Funciona offline.">
+  <meta name="theme-color" content="#58cc02">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Michi">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar" id="topbar">
+    <a href="#/" class="brand" aria-label="Início"><span class="brand-kanji">道</span><span class="brand-name">Michi</span></a>
+    <div class="stats">
+      <span class="stat" id="st-streak" title="Sequência de dias">🔥 <b>0</b></span>
+      <span class="stat" id="st-xp" title="XP total">⚡ <b>0</b></span>
+      <span class="stat" id="st-goal" title="Meta diária"><span class="ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" class="ring-bg"/><circle cx="18" cy="18" r="15" class="ring-fg" id="goal-ring"/></svg></span></span>
+    </div>
+  </header>
+
+  <main id="app" tabindex="-1"></main>
+
+  <nav class="tabbar" id="tabbar">
+    <a href="#/" data-tab="path"><span>🏠</span><small>Aprender</small></a>
+    <a href="#/review" data-tab="review"><span>🔁</span><small>Revisar</small><i class="badge" id="due-badge" hidden></i></a>
+    <a href="#/kana" data-tab="kana"><span>あ</span><small>Kana</small></a>
+    <a href="#/train" data-tab="train"><span>🎙️</span><small>Treinar</small></a>
+    <a href="#/profile" data-tab="profile"><span>👤</span><small>Perfil</small></a>
+  </nav>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="update-bar" class="update-bar" hidden>
+    <span>✨ Nova versão disponível</span>
+    <button class="btn small" id="update-btn">Atualizar</button>
+  </div>
+
+  <script src="js/romaji.js"></script>
+  <script src="js/kana-data.js"></script>
+  <script src="js/course-m0.js"></script>
+  <script src="js/course-m1.js"></script>
+  <script src="js/course-m2.js"></script>
+  <script src="js/course-m3.js"></script>
+  <script src="js/course-m4.js"></script>
+  <script src="js/course-m5.js"></script>
+  <script src="js/extra-kanji.js"></script>
+  <script src="js/extra-vocab.js"></script>
+  <script src="js/extra-situ.js"></script>
+  <script src="js/extra-stories.js"></script>
+  <script src="js/videos.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
