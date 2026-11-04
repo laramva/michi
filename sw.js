@@ -1,6 +1,6 @@
-// Service Worker: deixa o Michi 100% offline e aplica atualizações quando você publicar uma versão nova.
+﻿// Service Worker: deixa o Michi 100% offline e aplica atualizações sozinho quando você publica uma versão nova.
 // Para lançar uma atualização: altere VERSION (e APP_VERSION em js/app.js) e publique os arquivos.
-const VERSION = 'michi-v1.1.1';
+const VERSION = 'michi-v1.1.2';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/romaji.js', 'js/kana-data.js', 'js/course-m0.js', 'js/course-m1.js', 'js/course-m2.js',
@@ -10,11 +10,12 @@ const FILES = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))));
+  // Ativa a versão nova assim que ela termina de baixar (sem esperar o usuário clicar em nada)
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k.startsWith('michi-')).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k.startsWith('michi-') && k !== 'michi-thumbs').map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });

@@ -40,7 +40,7 @@ O reconhecimento de fala (nota de pronúncia) funciona no Chrome e no Edge com i
 
 1. Edite o conteúdo (as aulas ficam em `js/course-m0.js` … `js/course-m5.js`, os vídeos em `js/videos.js`).
 2. Aumente a versão em `sw.js` (`VERSION = 'michi-v1.0.1'`) e em `js/app.js` (`APP_VERSION`).
-3. Publique os arquivos. Quem já usa o app vê o aviso **"Nova versão disponível → Atualizar"**, e o progresso é mantido.
+3. Publique os arquivos. O app se atualiza sozinho em segundo plano na próxima vez que for aberto com internet (sem aviso e sem interromper uma prática), e o progresso é mantido.
 
 ## Estrutura das aulas
 

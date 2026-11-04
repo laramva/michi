@@ -1,7 +1,7 @@
 // Michi 道 — app principal (sem dependências, funciona offline).
 (function () {
   'use strict';
-  const APP_VERSION = '1.1.1';
+  const APP_VERSION = '1.1.2';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const app = $('#app');
@@ -226,6 +226,7 @@
   function go(hash) { location.hash = hash; }
   function router() {
     const h = location.hash.slice(1) || '/';
+    if (router.reloadLater && !h.startsWith('/p/')) { location.reload(); return; }
     document.body.classList.remove('in-session');
     app.onclick = null;
     if (recordVoice.rec) recordVoice.rec.stop();
@@ -912,29 +913,31 @@
   // ---------- Offline / atualizações (Service Worker) ----------
   let swReg = null, deferredInstall = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
-  function showUpdate(worker) {
-    const bar = $('#update-bar'); bar.hidden = false;
-    $('#update-btn').onclick = () => { worker.postMessage('skipWaiting'); bar.hidden = true; };
-  }
+  // Atualização automática: a versão nova é instalada em segundo plano e aplicada sozinha,
+  // sem aviso e sem interromper uma prática em andamento (o progresso fica no localStorage).
+  function applyUpdate(w) { if (w) w.postMessage('skipWaiting'); }
   function checkUpdate() {
     if (!swReg) { toast(location.protocol === 'file:' ? 'Abra pelo endereço http(s) para atualizações offline.' : 'Atualizações indisponíveis neste navegador.'); return; }
     if (!navigator.onLine) { toast('Sem internet: tente mais tarde.'); return; }
-    swReg.update().then(() => { if (swReg.waiting) showUpdate(swReg.waiting); else if (!swReg.installing) toast('Você já está na versão mais recente (v' + APP_VERSION + ').'); else toast('Baixando atualização…'); });
+    swReg.update().then(() => { const w = swReg.waiting || swReg.installing; if (w) { toast('Atualizando…'); applyUpdate(swReg.waiting); } else toast('Você já está na versão mais recente (v' + APP_VERSION + ').'); });
   }
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').then(reg => {
       swReg = reg;
-      if (reg.waiting && navigator.serviceWorker.controller) showUpdate(reg.waiting);
+      applyUpdate(reg.waiting);
       reg.addEventListener('updatefound', () => {
         const w = reg.installing;
         w.addEventListener('statechange', () => {
-          if (w.state === 'installed') { if (navigator.serviceWorker.controller) showUpdate(w); else toast('Pronto! O Michi agora funciona offline.'); }
+          if (w.state === 'installed') { if (navigator.serviceWorker.controller) applyUpdate(w); else toast('Pronto! O Michi agora funciona offline.'); }
         });
       });
       setInterval(() => navigator.onLine && reg.update(), 60 * 60000);
     }).catch(() => {});
-    let reloading = false; const hadController = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloading) { reloading = true; location.reload(); } });
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController) return;
+      if (document.body.classList.contains('in-session')) router.reloadLater = true; else location.reload();
+    });
   }
   window.addEventListener('online', () => toast('Conectado à internet.'));
   window.addEventListener('offline', () => toast('Modo offline: suas aulas continuam funcionando.'));
