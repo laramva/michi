@@ -1,7 +1,7 @@
 // Michi 道 — app principal (sem dependências, funciona offline).
 (function () {
   'use strict';
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.1.1';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const app = $('#app');
@@ -933,8 +933,8 @@
       });
       setInterval(() => navigator.onLine && reg.update(), 60 * 60000);
     }).catch(() => {});
-    let reloading = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloading) { reloading = true; location.reload(); } });
+    let reloading = false; const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloading) { reloading = true; location.reload(); } });
   }
   window.addEventListener('online', () => toast('Conectado à internet.'));
   window.addEventListener('offline', () => toast('Modo offline: suas aulas continuam funcionando.'));
