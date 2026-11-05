@@ -354,3 +354,11 @@ textarea.wput { display: block; width: 100%; max-width: none; margin-top: 6px; f
   .choice { font-size: 16px; padding: 12px; }
   .choices.two { grid-template-columns: 1fr; }
 }
+
+/* Sincronização entre aparelhos */
+.sync-steps { padding-left: 22px; margin: 8px 0 12px; line-height: 1.5; }
+.sync-steps li { margin-bottom: 6px; }
+.sync-steps code { background: var(--bg2); padding: 1px 5px; border-radius: 6px; }
+.sync-row { display: flex; gap: 8px; align-items: center; }
+.sync-row .search { margin: 0; flex: 1; min-width: 0; }
+.sync-row .btn { flex: none; }

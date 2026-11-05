@@ -21,6 +21,8 @@ Plataforma gratuita que funciona como um **professor particular**: leva alguém 
 
 **Pela internet (recomendado):** abra o link do GitHub Pages no celular ou no computador. No celular, use "Adicionar à tela inicial" (ou o botão *Instalar app* no Perfil). Depois da primeira abertura, tudo funciona sem internet.
 
+**Vários aparelhos (PC, iPad, celular):** em *Perfil → Sincronizar aparelhos*, cole um código do GitHub com permissão só de *gist* (o app mostra o passo a passo e o link). O progresso fica num Gist secreto da sua conta e se junta sozinho entre os aparelhos sempre que o app é aberto ou usado com internet. Tema, voz e velocidade continuam separados em cada aparelho.
+
 **No computador, sem internet:** clique com o botão direito em `iniciar-local.ps1` → *Executar com o PowerShell*. O app abre em `http://localhost:8787`.
 
 ### Voz japonesa

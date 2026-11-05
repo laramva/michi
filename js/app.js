@@ -1,7 +1,7 @@
 // Michi 道 — app principal (sem dependências, funciona offline).
 (function () {
   'use strict';
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.3.0';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const app = $('#app');
@@ -84,7 +84,7 @@
     S = Object.assign({}, JSON.parse(JSON.stringify(DEFAULT)), S || {});
     S.settings = Object.assign({}, DEFAULT.settings, S.settings || {});
   }
-  function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { toast('Não foi possível salvar o progresso neste navegador.'); } }
+  function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { toast('Não foi possível salvar o progresso neste navegador.'); } syncSoon(); }
 
   function addXP(n) {
     const t = todayKey(), y = todayKey(new Date(Date.now() - DAY));
@@ -97,10 +97,11 @@
   function srsData(it) { return [it.jp, it.kana, it.pt, it.em || '', it.isKana ? 1 : it.isKanji ? 2 : 0]; }
   function srsAdd(it, learned) {
     if (S.srs[it.key]) return;
-    S.srs[it.key] = { d: srsData(it), due: Date.now() + (learned ? DAY : 0), iv: learned ? 1 : 0, ef: 2.5, reps: learned ? 1 : 0, lapses: 0 };
+    S.srs[it.key] = { d: srsData(it), due: Date.now() + (learned ? DAY : 0), iv: learned ? 1 : 0, ef: 2.5, reps: learned ? 1 : 0, lapses: 0, t: Date.now() };
   }
   function srsGrade(key, ok) {
     const c = S.srs[key]; if (!c) return;
+    c.t = Date.now();
     if (ok) {
       c.reps++; c.iv = c.reps <= 1 ? 1 : c.reps === 2 ? 3 : Math.round(c.iv * c.ef);
       c.ef = Math.min(3, c.ef + 0.05); c.due = Date.now() + c.iv * DAY;
@@ -1100,6 +1101,7 @@
         <div class="setting"><span></span><button class="btn small blue" data-say="こんにちは。日本語の勉強、がんばりましょう！">🔊 Testar voz</button></div>
         ${jaVoices.length ? '' : `<div class="warn"><b>Nenhuma voz japonesa encontrada.</b> Para ouvir os áudios mesmo offline: <br>• <b>Windows</b>: Configurações → Hora e idioma → Fala → Adicionar vozes → Japonês.<br>• <b>Android</b>: Configurações → Idioma → Saída de texto para fala → Google → instalar dados de voz em japonês.<br>• <b>iPhone</b>: Ajustes → Acessibilidade → Conteúdo Falado → Vozes → Japonês.<br>No Chrome/Edge com internet, vozes online também funcionam.</div>`}
       </div>
+      ${syncCard()}
       <div class="card"><h3>💾 Seus dados</h3><p class="muted" style="margin-top:0">O progresso fica salvo neste aparelho e funciona offline. Faça backup para levar a outro celular/computador.</p>
         <div class="row"><button class="btn small" id="exp">Exportar backup</button><label class="btn small blue" style="cursor:pointer">Importar backup<input type="file" id="imp" accept=".json,application/json" hidden></label>
         <button class="btn small ghost" id="upd">Verificar atualização</button><button class="btn small ghost" id="inst" hidden>📲 Instalar app</button></div>
@@ -1120,7 +1122,8 @@
       f.text().then(t => { const d = JSON.parse(t); if (!d || typeof d.xp !== 'number' || !d.srs) throw 0; localStorage.setItem(STORE, JSON.stringify(d)); load(); applySettings(); updateTop(); toast('Backup importado!'); router(); })
         .catch(() => toast('Arquivo de backup inválido.'));
     };
-    $('#reset').onclick = () => { if (confirm('Apagar TODO o progresso? Isso não pode ser desfeito.') && confirm('Tem certeza? Exporte um backup antes, se quiser.')) { localStorage.removeItem(STORE); load(); save(); updateTop(); go('/'); location.reload(); } };
+    $('#reset').onclick = () => { if (confirm('Apagar TODO o progresso deste aparelho? Isso não pode ser desfeito.' + (sync ? ' Ele também será desconectado da sincronização (a cópia no GitHub continua lá).' : '')) && confirm('Tem certeza? Exporte um backup antes, se quiser.')) { syncOff(); localStorage.removeItem(STORE); load(); save(); updateTop(); go('/'); location.reload(); } };
+    bindSyncCard();
     $('#upd').onclick = checkUpdate;
     if (deferredInstall) { $('#inst').hidden = false; $('#inst').onclick = () => { deferredInstall.prompt(); deferredInstall = null; $('#inst').hidden = true; }; }
   });
@@ -1128,11 +1131,16 @@
   // ---------- Boas-vindas ----------
   function onboarding() {
     const starts = [['Do zero absoluto', 'Nunca estudei japonês', 0], ['Já sei hiragana e katakana', 'Começar pelos kanji e frases', LESSON.m0l8.index], ['Já tenho o básico (N5)', 'Começar pelo Módulo A2', LESSON.m2l1.index], ['Sou intermediário (N4)', 'Começar pelo Módulo B1', LESSON.m3l1.index]];
-    const el = document.createElement('div'); el.className = 'modal-back';
+    const el = document.createElement('div'); el.className = 'modal-back onb';
     el.innerHTML = `<div class="modal"><div class="center"><div style="font-size:60px">⛩️</div><h2>ようこそ！ Bem-vindo(a) ao Michi</h2>
       <p class="muted">Seu caminho (道) do zero ao japonês avançado: fala, escuta, leitura e escrita. Tudo funciona offline e fica salvo no seu aparelho.</p></div>
-      <h3>Qual é o seu nível?</h3><div class="opt-list">${starts.map((s, i) => `<button class="list-link" data-s="${s[2]}"><span class="ic">${['🌱', 'あ', '🌸', '🎋'][i]}</span><span class="grow"><b>${s[0]}</b><small>${s[1]}</small></span></button>`).join('')}</div></div>`;
+      <h3>Qual é o seu nível?</h3><div class="opt-list">${starts.map((s, i) => `<button class="list-link" data-s="${s[2]}"><span class="ic">${['🌱', 'あ', '🌸', '🎋'][i]}</span><span class="grow"><b>${s[0]}</b><small>${s[1]}</small></span></button>`).join('')}
+      <button class="list-link" id="onb-sync"><span class="ic">🔄</span><span class="grow"><b>Já estudo em outro aparelho</b><small>Trazer meu progresso do PC/iPad</small></span></button></div></div>`;
     document.body.appendChild(el);
+    $('#onb-sync', el).onclick = e => {
+      e.stopPropagation(); el.remove(); go('/profile');
+      setTimeout(() => { const c = $('#sync-card'); if (c) { c.scrollIntoView({ behavior: 'smooth' }); const t = $('#sync-token'); if (t) t.focus({ preventScroll: true }); } }, 150);
+    };
     el.addEventListener('click', function pickStart(e) {
       const b = e.target.closest('[data-s]'); if (!b) return;
       el.removeEventListener('click', pickStart);
@@ -1178,8 +1186,137 @@
   window.addEventListener('online', () => toast('Conectado à internet.'));
   window.addEventListener('offline', () => toast('Modo offline: suas aulas continuam funcionando.'));
 
+  // ---------- Sincronização entre aparelhos (PC ⇄ iPad ⇄ celular) ----------
+  // O progresso vai para um Gist secreto na conta do GitHub do aluno. Cada aparelho guarda a última
+  // versão combinada (base) para saber o que mudou nele desde então e juntar sem perder nada.
+  const SYNC = 'michi.sync.v1', SYNC_FILE = 'michi-progresso.json', SYNC_DESC = 'Michi 道 — progresso (sincronização entre aparelhos)';
+  const LOCAL_KEYS = ['settings', 'noMicUntil']; // tema, voz e velocidade ficam em cada aparelho (as vozes do PC e do iPad são diferentes)
+  let sync = null, syncBase = null, syncBusy = false, syncDirty = false, syncTimer = 0;
+  try { sync = JSON.parse(localStorage.getItem(SYNC)); syncBase = JSON.parse(localStorage.getItem(SYNC + '.base')); } catch (e) {}
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  function shared(s) { const o = Object.assign({}, s); LOCAL_KEYS.forEach(k => delete o[k]); return o; }
+  function saveSync() { try { if (sync) localStorage.setItem(SYNC, JSON.stringify(sync)); else localStorage.removeItem(SYNC); if (syncBase) localStorage.setItem(SYNC + '.base', JSON.stringify(syncBase)); else localStorage.removeItem(SYNC + '.base'); } catch (e) {} }
+  // Junta conquistas: o que foi concluído em qualquer aparelho continua concluído
+  function union(a, b) {
+    if (a == null) return b; if (b == null) return a;
+    if (typeof a === 'number' && typeof b === 'number') return Math.max(a, b);
+    if (typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) || Array.isArray(b)) return b || a;
+    const o = Object.assign({}, a); Object.keys(b).forEach(k => { o[k] = union(a[k], b[k]); }); return o;
+  }
+  function streakFrom(days, last) {
+    if (!last) return 0; let n = 0, d = new Date(last + 'T12:00:00');
+    while ((days[todayKey(d)] || 0) > 0) { n++; d = new Date(d.getTime() - DAY); }
+    return Math.max(n, 1);
+  }
+  function mergeState(L, R, B) {
+    R = Object.assign(JSON.parse(JSON.stringify(DEFAULT)), R);
+    const M = Object.assign({}, L, shared(R));
+    // XP e XP por dia: soma o que cada aparelho ganhou desde a última sincronização
+    const add = (l, r, b) => b == null ? Math.max(l || 0, r || 0) : (r || 0) + Math.max(0, (l || 0) - b);
+    M.xp = add(L.xp, R.xp, B && B.xp);
+    M.days = {};
+    Object.keys(Object.assign({}, L.days, R.days)).forEach(d => { M.days[d] = add(L.days[d], R.days[d], B ? (B.days || {})[d] || 0 : null); });
+    ['lessons', 'missions', 'culture', 'steps'].forEach(k => { M[k] = union(L[k], R[k]); });
+    // Revisões: vale a versão do cartão que mudou (ou a revisada por último)
+    M.srs = {};
+    const later = (l, r) => (l.t || 0) !== (r.t || 0) ? ((l.t || 0) > (r.t || 0) ? l : r) : (l.reps + l.lapses >= r.reps + r.lapses ? l : r);
+    Object.keys(Object.assign({}, L.srs, R.srs)).forEach(k => {
+      const l = L.srs[k], r = R.srs[k], b = B && B.srs && B.srs[k];
+      M.srs[k] = !l ? r : !r ? l : b && same(l, b) ? r : b && same(r, b) ? l : later(l, r);
+    });
+    const pick = k => B ? (same(L[k], B[k]) ? R[k] : L[k]) : (R.onboarded ? R[k] : L[k]);
+    M.goal = pick('goal'); M.startAt = pick('startAt');
+    M.onboarded = !!(L.onboarded || R.onboarded);
+    M.created = Math.min(L.created || Date.now(), R.created || Date.now());
+    M.lastDay = [L.lastDay, R.lastDay].filter(Boolean).sort().pop() || null;
+    M.streak = Math.max(streakFrom(M.days, M.lastDay), ...[L, R].filter(s => s.lastDay === M.lastDay).map(s => s.streak || 0));
+    return M;
+  }
+  async function ghApi(path, method, body) {
+    const r = await fetch('https://api.github.com' + path, { method: method || 'GET', cache: 'no-store', headers: { Authorization: 'Bearer ' + sync.token, Accept: 'application/vnd.github+json' }, body: body ? JSON.stringify(body) : undefined });
+    if (!r.ok) { const e = new Error('GitHub ' + r.status); e.status = r.status; throw e; }
+    return r.json();
+  }
+  function syncSoon() { if (!sync) return; syncDirty = true; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 15000); }
+  async function syncNow(manual) {
+    if (!sync || syncBusy) return;
+    if (!navigator.onLine) { if (manual === true) toast('Sem internet: sincronizo quando a conexão voltar.'); return; }
+    if (document.body.classList.contains('in-session')) { syncSoon(); return; } // não mexe no progresso no meio de uma prática
+    syncBusy = true; syncDirty = false; clearTimeout(syncTimer);
+    const before = JSON.stringify(shared(S));
+    try {
+      if (!sync.gist) {
+        const list = await ghApi('/gists?per_page=100');
+        const found = list.find(g => g.files && g.files[SYNC_FILE]);
+        sync.gist = found ? found.id : (await ghApi('/gists', 'POST', { description: SYNC_DESC, public: false, files: { [SYNC_FILE]: { content: JSON.stringify(shared(S)) } } })).id;
+        saveSync();
+      }
+      const g = await ghApi('/gists/' + sync.gist), f = g.files && g.files[SYNC_FILE];
+      if (!sync) return;
+      const remote = f ? JSON.parse(f.truncated ? await (await fetch(f.raw_url, { cache: 'no-store' })).text() : f.content) : null;
+      if (remote) {
+        const M = mergeState(S, remote, syncBase);
+        Object.keys(M).forEach(k => { S[k] = M[k]; });
+        try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {}
+      }
+      const now = shared(S);
+      if (!remote || !same(now, remote)) await ghApi('/gists/' + sync.gist, 'PATCH', { files: { [SYNC_FILE]: { content: JSON.stringify(now) } } });
+      syncBase = JSON.parse(JSON.stringify(now)); sync.last = Date.now(); sync.err = ''; saveSync();
+      if (before !== JSON.stringify(shared(S))) {
+        updateTop(); const h = location.hash.slice(1) || '/';
+        if (['/', '/profile', '/review'].includes(h)) router();
+        if (S.onboarded) $$('.modal-back.onb').forEach(m => m.remove());
+      } else if (manual === true && location.hash === '#/profile') router();
+      if (manual === true) toast('Progresso sincronizado ✓');
+    } catch (e) {
+      if (!sync) return; // desconectado no meio do caminho
+      const err = e.status === 401 ? 'O código do GitHub não vale mais (expirou ou foi apagado). Gere outro e conecte de novo.'
+        : e.status === 403 || e.status === 404 && !sync.gist ? 'O código do GitHub precisa ter a opção “gist” marcada.' : 'Não consegui falar com o GitHub agora. Tento de novo mais tarde.';
+      if (e.status === 404 && sync.gist) { sync.gist = ''; syncBase = null; } // arquivo apagado no GitHub: recria na próxima vez
+      if (manual === true || (err !== sync.err && e.status)) toast('Sincronização: ' + err);
+      sync.err = err; saveSync();
+    } finally { syncBusy = false; if (syncDirty) syncSoon(); }
+  }
+  async function syncConnect(token) {
+    sync = { token: token.trim(), gist: '', last: 0, err: '' }; syncBase = null;
+    try { await ghApi('/user'); } catch (e) {
+      sync = null; toast(e.status === 401 ? 'Código inválido. Copie de novo o código que começa com ghp_.' : 'Não consegui falar com o GitHub. Verifique a internet.'); return;
+    }
+    saveSync(); await syncNow(true); router();
+  }
+  function syncOff() { sync = null; syncBase = null; saveSync(); }
+  function ago(t) { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'agora há pouco' : m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.round(m / 60)} h` : `há ${Math.round(m / 1440)} dia(s)`; }
+  function deviceName() { const u = navigator.userAgent; return /iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1) ? 'iPad' : /iPhone/.test(u) ? 'iPhone' : /Android/.test(u) ? 'Android' : 'PC'; }
+  function syncCard() {
+    if (sync) return `<div class="card" id="sync-card"><h3>🔄 Sincronizar aparelhos</h3>
+      <p style="margin-top:0">✅ Conectado. ${sync.last ? `Última sincronização: <b>${ago(sync.last)}</b>.` : 'Sincronizando…'}</p>${sync.err ? `<div class="warn">${esc(sync.err)}</div>` : ''}
+      <p class="muted">Aulas, XP, revisões e sequência de dias se juntam sozinhos entre os aparelhos conectados sempre que você abre o app ou estuda com internet. Tema, voz e velocidade ficam separados em cada aparelho.</p>
+      <div class="row"><button class="btn small" id="sync-now">Sincronizar agora</button><button class="btn small ghost" id="sync-off">Desconectar este aparelho</button></div></div>`;
+    const note = encodeURIComponent(`Michi ${deviceName()} ${todayKey()} ${new Date().toTimeString().slice(0, 5)}`);
+    return `<div class="card" id="sync-card"><h3>🔄 Sincronizar aparelhos (PC ⇄ iPad)</h3>
+      <p class="muted" style="margin-top:0">Para estudar no PC, no iPad e no celular com o mesmo progresso. Ele fica guardado num arquivo secreto na sua conta do GitHub, de graça. Faça isto uma vez em cada aparelho:</p>
+      <ol class="sync-steps"><li>Abra <a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=${note}" target="_blank" rel="noopener">esta página do GitHub</a> e entre na sua conta.</li>
+      <li>Em <b>Expiration</b>, escolha <b>No expiration</b>. Deixe marcada só a opção <b>gist</b> (ela já vem marcada) e toque em <b>Generate token</b>, no fim da página.</li>
+      <li>Copie o código que aparece (começa com <code>ghp_</code>), volte aqui, cole abaixo e toque em <b>Conectar</b>.</li></ol>
+      <div class="sync-row"><input id="sync-token" class="search" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cole aqui o código ghp_…"><button class="btn small" id="sync-on">Conectar</button></div>
+      <p class="muted" style="margin-bottom:0;font-size:13px">O código só dá acesso aos seus Gists (anotações do GitHub), não ao resto da conta, e fica guardado apenas neste aparelho. No outro aparelho, gere um código do mesmo jeito: o Michi encontra o mesmo progresso sozinho.</p></div>`;
+  }
+  function bindSyncCard() {
+    const on = $('#sync-on'), now = $('#sync-now'), off = $('#sync-off');
+    if (on) on.onclick = () => { const t = $('#sync-token').value.trim(); if (!/^(ghp_|github_pat_)\w{20,}$/.test(t)) { toast('Cole o código inteiro (começa com ghp_).'); return; } on.disabled = true; on.textContent = 'Conectando…'; syncConnect(t).finally(() => { if (on.isConnected) { on.disabled = false; on.textContent = 'Conectar'; } }); };
+    if (now) now.onclick = () => { now.disabled = true; now.textContent = 'Sincronizando…'; syncNow(true).finally(() => { if (now.isConnected) router(); }); };
+    if (off) off.onclick = () => { if (confirm('Desconectar este aparelho? O progresso continua salvo aqui e na sua conta do GitHub.')) { syncOff(); toast('Aparelho desconectado.'); router(); } };
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!sync) return;
+    if (document.visibilityState === 'hidden') { if (syncDirty) syncNow(); }
+    else if (syncDirty || Date.now() - (sync.last || 0) > 30000) syncNow(); // voltou ao app: puxa o que foi feito no outro aparelho
+  });
+  window.addEventListener('online', () => syncNow());
+
   // ---------- Início ----------
   load(); applySettings(); updateTop();
   router();
   if (!S.onboarded) onboarding();
+  if (sync) syncNow();
 })();
