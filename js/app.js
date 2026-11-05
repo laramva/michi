@@ -1,7 +1,7 @@
 // Michi 道 — app principal (sem dependências, funciona offline).
 (function () {
   'use strict';
-  const APP_VERSION = '1.1.2';
+  const APP_VERSION = '1.2.0';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const app = $('#app');
@@ -17,7 +17,7 @@
 
   // ---------- Curso ----------
   const MODULES = window.COURSE;
-  const TRACKS = { all: ['Tudo', '🧭'], core: ['Gramática', '📐'], vocab: ['Vocabulário', '📚'], kanji: ['Kanji', '🈶'], situ: ['Situações', '🎭'], story: ['Histórias', '📖'], review: ['Revisões', '🏆'] };
+  const TRACKS = { all: ['Tudo', '🧭'], core: ['Gramática', '📐'], vocab: ['Vocabulário', '📚'], kanji: ['Kanji', '🈶'], situ: ['Situações', '🎭'], story: ['Histórias', '📖'], culture: ['Cultura', '🏮'], review: ['Revisões', '🏆'] };
   // Mistura as trilhas extras (vocabulário, kanji, situações, histórias) dentro de cada módulo
   MODULES.forEach(m => {
     m.lessons.forEach(l => { l.track = l.track || 'core'; });
@@ -75,7 +75,7 @@
   const STORE = 'michi.state.v1';
   const DEFAULT = {
     v: 1, created: Date.now(), xp: 0, streak: 0, lastDay: null, days: {}, goal: 30, startAt: 0, onboarded: false,
-    lessons: {}, missions: {}, srs: {}, noMicUntil: 0,
+    lessons: {}, missions: {}, srs: {}, noMicUntil: 0, steps: {}, culture: {},
     settings: { furigana: true, romaji: false, rate: 0.9, voice: '', unlockAll: false, sound: true, theme: 'auto' }
   };
   let S;
@@ -220,6 +220,38 @@
   function isUnlocked(l) { return S.settings.unlockAll || l.index <= S.startAt || l.index === 0 || isDone(LESSONS[l.index - 1]) || isDone(l); }
   function nextLesson() { return LESSONS.find(l => !isDone(l) && isUnlocked(l)) || LESSONS[LESSONS.length - 1]; }
 
+  // ---------- Roteiro guiado de cada aula: professor → vídeos → explicação → exercícios → prática → cultura ----------
+  const CULTURE = window.CULTURE || {};
+  const STEP = { prof: ['👩‍🏫', 'Professor', 2], video: ['🎬', 'Vídeos', 10], learn: ['📘', 'Explicação', 8], ex: ['✍️', 'Exercícios', 8], practice: ['🎮', 'Prática', 7], culture: ['🏮', 'Cultura', 3] };
+  const STEP_DESC = { prof: 'o que vamos estudar e por quê', video: 'aulas em vídeo sobre o tema', learn: 'explicação escrita, exemplos e áudio', ex: 'exercícios escritos, com correção', practice: 'treino rápido estilo jogo: escuta, fala e escrita', culture: 'uma curiosidade do Japão e uma atividade' };
+  function lessonSteps(l) {
+    if (l.checkpoint) return ['prof', 'practice'];
+    return ['prof', 'video', 'learn', 'ex', 'practice'].concat(CULTURE[l.id] ? ['culture'] : []);
+  }
+  function stepDone(l, s) { if (s === 'practice') return isDone(l); const st = S.steps[l.id]; return !!(st && st[s] != null); }
+  function markStep(l, s) { const st = S.steps[l.id] = S.steps[l.id] || {}; if (st[s] == null) { st[s] = 1; save(); } }
+  // A apresentação do professor só conta como próximo passo enquanto nenhum outro passo foi feito
+  function nextStep(l) {
+    const all = lessonSteps(l), left = all.filter(s => !stepDone(l, s));
+    return (left[0] === 'prof' && left.length < all.length ? left[1] : left[0]) || null;
+  }
+  function stepHref(l, s) { return s === 'practice' ? '#/p/' + l.id : '#/l/' + l.id + '/' + s; }
+  function afterStep(l, s) { const st = lessonSteps(l); return st[st.indexOf(s) + 1] || null; }
+  function stepsBar(l, active) {
+    return `<div class="steps">${lessonSteps(l).map(s => { const d = stepDone(l, s); return `<a href="${stepHref(l, s)}" class="st ${d ? 'done' : ''} ${s === active ? 'on' : ''}"><span>${d ? '✓' : STEP[s][0]}</span><small>${STEP[s][1]}</small></a>`; }).join('')}</div>`;
+  }
+  function tutor(html) { return `<div class="tutor"><div class="tutor-av" aria-hidden="true">先生</div><div class="tutor-bub">${html}</div></div>`; }
+  function hello() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }
+  const PROF_TRACK = {
+    core: 'Esta é uma aula de <b>estrutura</b>. Primeiro você assiste a quem explica bem, depois lê a explicação com exemplos e áudio, faz exercícios escritos e só então treina no ritmo de jogo.',
+    vocab: 'Aula de <b>vocabulário</b> temático. Palavra solta se esquece rápido, então você vai vê-las dentro de frases, escrever, ouvir e depois revisá-las com repetição espaçada.',
+    kanji: 'Aula de <b>kanji</b>. Para cada um: olhe as peças (radicais), invente uma historinha, aprenda o kanji dentro de palavras reais e escreva à mão. Não decore leituras soltas.',
+    situ: 'Aula de <b>situação real</b>: um diálogo que você pode usar amanhã. Entenda as frases, ouça, e depois interprete os dois papéis em voz alta.',
+    story: 'Aula de <b>leitura</b>. Leia sem pressa, ouça o áudio acompanhando o texto e responda às perguntas. Ler muito texto fácil é o que cria fluência.',
+    culture: 'Aula de <b>cultura e sociedade</b>: vamos conhecer o Japão por trás da língua. Assista, leia, aprenda as palavras do tema e faça a atividade no final.',
+    review: 'Revisão geral do módulo: uma prática mista com tudo o que você viu. Vale 30 XP e mostra se você está pronto(a) para o próximo nível.'
+  };
+
   // ---------- Router ----------
   const routes = [];
   function route(re, fn) { routes.push([re, fn]); }
@@ -239,22 +271,30 @@
   // ---------- Tela: trilha ----------
   route(/^\/$/, () => {
     setTab('path');
-    const cur = nextLesson();
+    const cur = nextLesson(), step = nextStep(cur) || 'prof';
     const due = dueKeys().length, today = S.days[todayKey()] || 0, filter = S.settings.filter || 'all';
-    const doneAll = LESSONS.filter(isDone).length;
+    const doneAll = LESSONS.filter(isDone).length, started = doneAll > 0 || Object.keys(S.steps).length > 0;
     const lessonsToday = Object.values(S.lessons).filter(x => x.at && todayKey(new Date(x.at)) === todayKey()).length;
     let h = '';
     if (!jaVoices.length && 'speechSynthesis' in window && speechSynthesis.getVoices().length) h += `<div class="warn">🔈 Este navegador não tem voz japonesa. Abra o Michi no <b>Chrome</b>, no <b>Edge</b> ou no <b>celular</b> e os áudios tocam em japonês automaticamente.</div>`;
-    // Cartão principal: um toque para estudar
-    h += `<div class="card hero" style="border-color:${cur.module.color}">
-      <div class="row"><span class="hero-ic" style="background:${cur.module.color}">${cur.icon}</span><div class="grow">
+    // Cartão do professor: diz onde você está e qual é o próximo passo
+    const msg = !started
+      ? `${hello()}! Eu vou te guiar do zero, passo a passo. Primeiro você entende <b>como o japonês funciona</b>, depois aprende os <b>sons</b> e o <b>alfabeto</b>, e só então monta frases. Cada aula tem vídeos, explicação, exercícios escritos, prática e um pouco da cultura japonesa.`
+      : `${hello()}! Vamos continuar a aula <b>${esc(cur.title)}</b>. Próximo passo: <b>${STEP[step][1].toLowerCase()}</b>.${due ? ` Antes, você tem <b>${due}</b> ${due === 1 ? 'item' : 'itens'} para revisar (uns ${Math.max(2, Math.round(Math.min(20, due) / 4))} minutos).` : ''}`;
+    h += `<div class="card hero" style="border-color:${cur.module.color}">${tutor(msg)}
+      <div class="row" style="margin-top:14px"><span class="hero-ic" style="background:${cur.module.color}">${cur.icon}</span><div class="grow">
       <div class="pill">${TRACKS[cur.track][1]} ${TRACKS[cur.track][0]} · ${esc(cur.module.level)}</div>
       <h2 style="margin:4px 0 0">${esc(cur.title)}</h2><small class="muted">Aula ${cur.index + 1} de ${LESSONS.length} · ${doneAll} concluídas</small></div></div>
-      <button class="btn block" id="study-now" style="margin-top:14px">${due ? `▶ Estudar agora (${Math.min(20, due)} revisões + aula)` : '▶ Estudar agora'}</button>
-      <div class="row" style="margin-top:10px;justify-content:center"><a href="#/l/${cur.id}" class="btn ghost small">📘 Ver explicação</a>${due ? `<a href="#/review" class="btn ghost small">🔁 Só revisar</a>` : ''}</div></div>`;
+      ${stepsBar(cur, step)}
+      <a class="btn block" href="${stepHref(cur, step)}" style="margin-top:12px">▶ ${started ? 'Continuar' : 'Começar'}: ${STEP[step][0]} ${STEP[step][1]}</a>
+      ${due ? `<button class="btn ghost block" id="rev-first" style="margin-top:10px">🔁 Revisar ${Math.min(20, due)} itens primeiro</button>` : ''}</div>`;
     h += `<div class="card"><h3 style="margin-bottom:6px">📅 Plano de hoje</h3>
-      <div class="plan"><span class="${due ? '' : 'ok'}">${due ? '⬜' : '✅'} Revisões em dia</span><span class="${lessonsToday ? 'ok' : ''}">${lessonsToday ? '✅' : '⬜'} 1 aula nova</span><span class="${today >= S.goal ? 'ok' : ''}">${today >= S.goal ? '✅' : '⬜'} Meta: ${today}/${S.goal} XP</span></div></div>`;
-    h += `<div class="chips" id="mod-chips">${MODULES.map(m => `<button class="chip" data-mod="${m.id}" style="--mc:${m.color}">${m.icon} ${esc(m.level.split(' ')[0])}</button>`).join('')}</div>`;
+      <div class="plan"><span class="${due ? '' : 'ok'}">${due ? '⬜' : '✅'} Revisões em dia</span><span class="${lessonsToday ? 'ok' : ''}">${lessonsToday ? '✅' : '⬜'} 1 aula completa</span><span class="${today >= S.goal ? 'ok' : ''}">${today >= S.goal ? '✅' : '⬜'} Meta: ${today}/${S.goal} XP</span></div></div>`;
+    h += `<div class="card"><h3 style="margin-bottom:4px">🗺️ Seu caminho</h3>${MODULES.map(m => {
+      const d = m.lessons.filter(isDone).length, here = m === cur.module;
+      return `<button class="road ${here ? 'here' : ''}" data-mod="${m.id}"><span class="ri" style="background:${m.color}">${m.icon}</span><span class="grow"><b>${esc(m.title)}</b> <small class="muted">${esc(m.level)}</small>${here ? ` <span class="pill" style="background:${m.color};color:#fff">você está aqui</span>` : ''}
+        <span class="rbar"><i style="width:${Math.round(100 * d / m.lessons.length)}%;background:${m.color}"></i></span></span><small class="muted">${d}/${m.lessons.length}</small></button>`;
+    }).join('')}<p class="muted" style="font-size:13px;margin:8px 0 0">Ainda com dúvida sobre algum tema? A aba <a href="#/videos">🎬 Vídeos</a> tem aulas por assunto: sons, escrita, gramática, cultura, história e sociedade.</p></div>`;
     h += `<div class="chips">${Object.keys(TRACKS).map(k => `<button class="chip ${filter === k ? 'on' : ''}" data-filter="${k}">${TRACKS[k][1]} ${TRACKS[k][0]}</button>`).join('')}</div>`;
     MODULES.forEach(m => {
       const done = m.lessons.filter(isDone).length;
@@ -272,26 +312,39 @@
       h += `</div></section>`;
     });
     app.innerHTML = h;
-    $('#study-now').onclick = () => {
-      const keys = dueKeys().slice(0, 20);
-      if (keys.length) reviewSession(keys, true, () => go('/p/' + nextLesson().id), 'Revisão feita! Agora, a aula de hoje.');
-      else go('/p/' + cur.id);
-    };
+    const rf = $('#rev-first');
+    if (rf) rf.onclick = () => reviewSession(dueKeys().slice(0, 20), true, () => go(stepHref(cur, step).slice(1)), 'Revisão feita! Agora, a aula de hoje.');
     $$('[data-mod]').forEach(b => b.onclick = () => $('#mod-' + b.dataset.mod).scrollIntoView({ behavior: 'smooth' }));
     $$('[data-filter]').forEach(b => b.onclick = () => { S.settings.filter = b.dataset.filter; save(); router(); });
     $$('.node[data-locked="1"]').forEach(n => n.addEventListener('click', () => toast('Complete a aula anterior para desbloquear (ou ative "Desbloquear tudo" no Perfil).')));
   });
 
   // ---------- Tela: aula (teoria) ----------
-  function videosHTML(l) {
-    const vs = (window.VIDEOS || {})[l.id] || [];
-    const q = encodeURIComponent(l.title + ' japonês aula');
-    let h = `<div class="card"><h3>🎬 Vídeos da aula</h3>`;
-    if (!navigator.onLine) h += `<div class="warn offline-note">Você está offline. Os vídeos aparecem quando a internet voltar — o resto da aula funciona normalmente.</div>`;
-    h += `<div class="videos">` + vs.map(v => `<div class="video"><div class="thumb" data-yt="${v[0]}" style="background-image:url(https://i.ytimg.com/vi/${v[0]}/mqdefault.jpg)" role="button" aria-label="Assistir ${esc(v[2])}"></div>
-      <div class="vt"><b>${esc(v[2])}</b><span class="muted">${esc(v[1])} · ${v[3] === 'pt' ? '🇧🇷 PT' : v[3] === 'ja' ? '🇯🇵 JP' : '🇺🇸 EN'}</span> · <a href="https://www.youtube.com/watch?v=${v[0]}" target="_blank" rel="noopener">abrir</a></div></div>`).join('') + `</div>`;
-    h += `<p class="muted" style="font-size:13px;margin-bottom:0">Quer mais? <a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">Buscar no YouTube</a>. Dica: assista primeiro sem legenda, depois com legenda em japonês.</p></div>`;
-    return h;
+  // Vídeos da aula: canal da Jenni primeiro, depois os vídeos selecionados (ou os da trilha, se a aula não tiver)
+  function lessonVideos(l) {
+    const J = window.JENNI || {}, jy = ((J.yt || {})[l.id] || []).map(v => [v[0], J.ytChannel, v[1], 'pt']);
+    let own = (window.VIDEOS || {})[l.id] || (window.EXTRA_VIDEOS || {})[l.id] || l.videos || [];
+    if (!own.length && !jy.length) own = (window.TRACK_VIDEOS || {})[l.track] || [];
+    const seen = new Set();
+    return jy.concat(own).filter(v => !seen.has(v[0]) && seen.add(v[0]));
+  }
+  const LANG = { pt: '🇧🇷 PT', ja: '🇯🇵 JP', en: '🇺🇸 EN', es: '🇪🇸 ES' };
+  function videoCard(v) {
+    const jenni = window.JENNI && v[1] === window.JENNI.ytChannel;
+    return `<div class="video" data-q="${esc((v[1] + ' ' + v[2]).toLowerCase())}"><div class="thumb" data-yt="${v[0]}" role="button" aria-label="Assistir ${esc(v[2])}"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/${v[0]}/mqdefault.jpg"></div>
+      <div class="vt">${jenni ? '<span class="pill jenni-pill">Prof. Jenni</span> ' : ''}<b>${esc(v[2])}</b><span class="muted">${esc(v[1])} · ${LANG[v[3]] || LANG.en}</span> · <a href="https://www.youtube.com/watch?v=${v[0]}" target="_blank" rel="noopener">abrir</a></div></div>`;
+  }
+  function offlineNote() { return navigator.onLine ? '' : `<div class="warn offline-note">Você está offline. Os vídeos aparecem quando a internet voltar; o resto da aula funciona normalmente.</div>`; }
+  function jenniCard(l) {
+    const J = window.JENNI, map = J && J.map[l.id];
+    if (!map) return '';
+    return `<div class="card jenni"><h3>👩‍🏫 No seu curso da Jenni</h3><p class="muted" style="margin-top:0">${esc(J.course)}: a professora explica este mesmo tema em vídeo. Abre no Hotmart, com o seu login.</p>
+      ${map.map(([mod, part]) => `<a class="list-link" href="${J.mods[mod][1]}" target="_blank" rel="noopener"><span class="ic">📺</span><span class="grow"><b>${esc(J.mods[mod][0])}</b><small>${esc(part)}</small></span>↗</a>`).join('')}</div>`;
+  }
+  function nextBtn(l, s, label) {
+    const n = afterStep(l, s);
+    if (!n) { const nl = LESSONS[l.index + 1]; return nl ? `<div class="sticky-cta"><a class="btn block" data-mark="${s}" href="#/l/${nl.id}">Aula concluída! Próxima: ${esc(nl.title)} ▶</a></div>` : ''; }
+    return `<div class="sticky-cta"><a class="btn block" data-mark="${s}" href="${stepHref(l, n)}">${label ? label + ' · ' : ''}Próximo: ${STEP[n][0]} ${STEP[n][1]} ▶</a></div>`;
   }
   function bindVideos(root) {
     $$('.thumb[data-yt]', root).forEach(t => t.addEventListener('click', () => {
@@ -304,52 +357,207 @@
   }
   function exHTML(e) { return `<div class="ex">${speakBtn(e[0])}<div class="grow"><div class="jp">${jp(e[0])}</div><div class="pt">${esc(e[1])}</div></div></div>`; }
 
-  route(/^\/l\/(\w+)$/, id => {
+  route(/^\/l\/(\w+)(?:\/(\w+))?$/, (id, step) => {
     const l = LESSON[id]; if (!l) return go('/');
     setTab('path');
-    const m = l.module, st = S.lessons[id];
-    let h = `<a href="#/" class="muted" style="text-decoration:none">‹ Trilha</a>
+    if (!lessonSteps(l).includes(step) || step === 'practice') step = 'prof';
+    const m = l.module;
+    let h = `<a href="#/" class="muted" style="text-decoration:none">‹ Início</a>
       <div class="lesson-hero" style="margin-top:8px"><span class="bubble" style="background:${m.color}">${l.icon}</span><div>
-      <div class="pill">${TRACKS[l.track][1]} ${TRACKS[l.track][0]} · ${esc(m.level)} · Aula ${l.index + 1}/${LESSONS.length}</div><h1 style="margin:4px 0 0;font-size:24px">${esc(l.title)}</h1></div></div>`;
-    if (l.cando) h += `<div class="card"><h3>🎯 Ao final você vai conseguir</h3><ul class="cando">${l.cando.map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>`;
-    if (l.intro) h += `<div class="card">${JP.ruby(l.intro)}</div>`;
-    if (l.kana) {
-      const items = lessonItems(l).filter(i => i.isKana);
-      h += `<div class="card"><h3>✍️ Kana desta aula</h3><p class="muted">Toque para ouvir. Leia o mnemônico, depois treine a escrita.</p><div class="kgrid">` +
-        items.map(i => `<div class="kcard" data-say="${esc(i.jp)}" role="button"><div class="k">${esc(i.jp)}</div><b>${esc(i.pt)}</b>${i.mn ? `<small>${esc(i.mn)}</small>` : ''}${i.ex ? `<small class="jp">${i.em} ${esc(i.ex)} = ${esc(i.exm)}</small>` : ''}</div>`).join('') + `</div></div>`;
-    }
-    const vocab = (l.vocab || []).map(vocabItem);
-    if (vocab.length) h += `<div class="card"><h3>📚 Vocabulário</h3><div class="vgrid">` + vocab.map(v => `<div class="vcard" data-say="${esc(v.kana)}" role="button"><div class="em">${v.em}</div><div class="w">${wordHTML(v)}</div><div class="m">${esc(v.pt)}</div></div>`).join('') + `</div></div>`;
-    if (l.kanji) h += `<div class="card"><h3>🈶 Kanji</h3><div class="kgrid">` + l.kanji.map(k => `<div class="kcard"><div class="k">${esc(k[0])}</div><b>${esc(k[3])}</b><small>音 ${esc(k[1])}</small><small>訓 ${esc(k[2])}</small></div>`).join('') + `</div></div>`;
-    (l.grammar || []).forEach(g => { h += `<div class="card grammar"><h3>📐 ${JP.ruby(esc(g.t))}</h3><p>${JP.ruby(g.d)}</p>${(g.ex || []).map(exHTML).join('')}</div>`; });
-    if (l.sentences) h += `<div class="card"><h3>💬 Frases-chave</h3>${l.sentences.map(exHTML).join('')}</div>`;
-    if (l.dialogue) {
-      h += `<div class="card"><div class="row"><h3 class="grow" style="margin:0">🎭 Diálogo</h3><button class="btn small blue" id="play-dialog">▶ Ouvir</button><a class="btn small" href="#/rp/${id}">🎙️ Interpretar</a></div>` +
-        l.dialogue.map((d, i) => `<div class="dialog-line ${i % 2 ? 'me' : ''}"><span class="who">${jp(d[0])}</span><div class="bub"><div class="row">${speakBtn(d[1])}<div class="grow"><div class="jp" style="font-size:18px">${jp(d[1])}</div><div class="pt muted" style="font-size:14px">${esc(d[2])}</div></div></div></div></div>`).join('') + `</div>`;
-    }
-    if (l.reading) h += readingHTML(l.reading);
-    if (l.checkpoint) {
-      const ls = m.lessons.filter(x => x !== l), dn = ls.filter(isDone).length;
-      h += `<div class="card"><h3>🏆 Revisão do módulo ${esc(m.level)}</h3><p>Uma prática mista com vocabulário, kanji, frases e perguntas de todas as ${ls.length} aulas do módulo (${dn} concluídas). Vale 30 XP e mostra se você está pronto(a) para o próximo nível. Pode refazer quantas vezes quiser.</p></div>`;
-    } else h += videosHTML(l);
-    if (l.tip) h += `<div class="card tip"><h3>🧠 Técnica de estudo</h3><p style="margin:0">${esc(l.tip)}</p></div>`;
-    if (l.mission) h += `<div class="card mission"><h3>🌏 Missão na vida real</h3><p>${esc(l.mission)}</p>
-      <button class="btn small ${S.missions[id] ? 'ghost' : ''}" id="mission-btn" ${S.missions[id] ? 'disabled' : ''}>${S.missions[id] ? '✓ Missão cumprida' : 'Cumpri a missão (+20 XP)'}</button></div>`;
-    h += `<div class="sticky-cta"><a class="btn block" href="#/p/${id}">${st && st.done ? '💪 Praticar de novo' : '🚀 Começar a prática'}</a></div>`;
+      <div class="pill">${TRACKS[l.track][1]} ${TRACKS[l.track][0]} · ${esc(m.level)} · Aula ${l.index + 1}/${LESSONS.length}</div><h1 style="margin:4px 0 0;font-size:24px">${esc(l.title)}</h1></div></div>${stepsBar(l, step)}`;
+    h += STEP_VIEW[step](l);
     app.innerHTML = h;
     bindVideos(app);
-    const pd = $('#play-dialog');
-    if (pd) pd.onclick = async () => { for (const d of l.dialogue) { await speak(d[1]); await new Promise(r => setTimeout(r, 350)); } };
-    const mb = $('#mission-btn');
-    if (mb) mb.onclick = () => { S.missions[id] = Date.now(); addXP(20); beep('win'); toast('Missão cumprida! +20 XP'); mb.disabled = true; mb.textContent = '✓ Missão cumprida'; mb.classList.add('ghost'); };
-    bindReading(app);
+    $$('[data-mark]', app).forEach(a => a.addEventListener('click', () => markStep(l, a.dataset.mark)));
+    if (STEP_BIND[step]) STEP_BIND[step](l);
   });
+
+  const STEP_VIEW = {
+    prof(l) {
+      const steps = lessonSteps(l), due = dueKeys().length;
+      let ns = nextStep(l); if (!ns || ns === 'prof') ns = steps.find(s => s !== 'prof' && !stepDone(l, s)) || steps[1];
+      const mins = steps.reduce((a, s) => a + STEP[s][2], 0);
+      let h = `<div class="card">${tutor(`<p style="margin-top:0">${hello()}! Hoje: <b>${esc(l.title)}</b>.</p><p>${l.prof || PROF_TRACK[l.track] || PROF_TRACK.core}</p>
+        ${l.cando ? `<p style="margin-bottom:4px"><b>Ao final você vai conseguir:</b></p><ul class="cando">${l.cando.map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}`)}</div>`;
+      h += `<div class="card"><h3>🗒️ Roteiro desta aula <small class="muted">(~${mins} min)</small></h3><ol class="roteiro">${steps.map(s => `<li class="${stepDone(l, s) ? 'ok' : ''}"><a href="${stepHref(l, s)}">${STEP[s][0]} <b>${STEP[s][1]}</b></a> <small class="muted">· ${STEP_DESC[s]}</small>${stepDone(l, s) ? ' ✅' : ''}</li>`).join('')}</ol>
+        <p class="muted" style="font-size:13px;margin-bottom:0">Pode pular ou voltar a qualquer passo tocando nele. A aula seguinte libera quando você termina a prática.</p></div>`;
+      if (l.checkpoint) {
+        const ls = l.module.lessons.filter(x => x !== l), dn = ls.filter(isDone).length;
+        h += `<div class="card"><h3>🏆 Revisão do módulo ${esc(l.module.level)}</h3><p style="margin:0">Uma prática mista com vocabulário, kanji, frases e perguntas de todas as ${ls.length} aulas do módulo (${dn} concluídas). Pode refazer quantas vezes quiser.</p></div>`;
+      }
+      if (l.tip) h += `<div class="card tip"><h3>🧠 Como estudar esta aula</h3><p style="margin:0">${esc(l.tip)}</p></div>`;
+      if (due && !stepDone(l, 'prof')) h += `<div class="warn">🔁 Você tem <b>${due}</b> itens para revisar. Revisar antes de uma aula nova fixa o que você já aprendeu. <a href="#/review">Revisar agora</a></div>`;
+      h += `<div class="sticky-cta"><a class="btn block" data-mark="prof" href="${stepHref(l, ns)}">${stepDone(l, 'prof') ? 'Continuar' : 'Começar'}: ${STEP[ns][0]} ${STEP[ns][1]} ▶</a></div>`;
+      return h;
+    },
+    video(l) {
+      const vs = lessonVideos(l), q = encodeURIComponent(l.title.replace(/^[^:]+:\s*/, '') + ' japonês');
+      let h = `<div class="card">${tutor(`<b>Como assistir:</b> veja o primeiro vídeo com atenção total. Nos outros, pause e repita em voz alta as frases em japonês. Não precisa ver todos: um ou dois já bastam para seguir.${vs.some(v => v[3] !== 'pt') ? ' Vídeos em inglês ou japonês têm legenda automática em português (⚙️ → Legendas → Traduzir automaticamente).' : ''}`)}</div>`;
+      h += jenniCard(l) + offlineNote();
+      h += `<div class="card"><h3>🎬 Vídeos sobre o tema</h3><div class="videos">${vs.map(videoCard).join('')}</div>
+        <p class="muted" style="font-size:13px;margin-bottom:0">Quer mais? <a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">Buscar no YouTube</a> · <a href="#/videos">Biblioteca de vídeos por tema</a></p></div>`;
+      return h + nextBtn(l, 'video', 'Já assisti');
+    },
+    learn(l) {
+      const id = l.id;
+      let h = `<div class="card">${tutor('Leia com calma, de cima para baixo. Toque em 🔊 para ouvir cada exemplo e repita em voz alta. Se algo não ficar claro, volte aos vídeos.')}</div>`;
+      if (l.intro) h += `<div class="card">${JP.ruby(l.intro)}</div>`;
+      if (l.kana) {
+        const items = lessonItems(l).filter(i => i.isKana);
+        h += `<div class="card"><h3>✍️ Kana desta aula</h3><p class="muted">Toque para ouvir. Leia o mnemônico, depois treine a escrita.</p><div class="kgrid">` +
+          items.map(i => `<div class="kcard" data-say="${esc(i.jp)}" role="button"><div class="k">${esc(i.jp)}</div><b>${esc(i.pt)}</b>${i.mn ? `<small>${esc(i.mn)}</small>` : ''}${i.ex ? `<small class="jp">${i.em} ${esc(i.ex)} = ${esc(i.exm)}</small>` : ''}</div>`).join('') + `</div></div>`;
+      }
+      const vocab = (l.vocab || []).map(vocabItem);
+      if (vocab.length) h += `<div class="card"><h3>📚 Vocabulário</h3><div class="vgrid">` + vocab.map(v => `<div class="vcard" data-say="${esc(v.kana)}" role="button"><div class="em">${v.em}</div><div class="w">${wordHTML(v)}</div><div class="m">${esc(v.pt)}</div></div>`).join('') + `</div></div>`;
+      if (l.kanji) h += `<div class="card"><h3>🈶 Kanji</h3><div class="kgrid">` + l.kanji.map(k => `<div class="kcard"><div class="k">${esc(k[0])}</div><b>${esc(k[3])}</b><small>音 ${esc(k[1])}</small><small>訓 ${esc(k[2])}</small></div>`).join('') + `</div></div>`;
+      (l.grammar || []).forEach(g => { h += `<div class="card grammar"><h3>📐 ${JP.ruby(esc(g.t))}</h3><p>${JP.ruby(g.d)}</p>${(g.ex || []).map(exHTML).join('')}</div>`; });
+      if (l.sentences) h += `<div class="card"><h3>💬 Frases-chave</h3>${l.sentences.map(exHTML).join('')}</div>`;
+      if (l.dialogue) {
+        h += `<div class="card"><div class="row"><h3 class="grow" style="margin:0">🎭 Diálogo</h3><button class="btn small blue" id="play-dialog">▶ Ouvir</button><a class="btn small" href="#/rp/${id}">🎙️ Interpretar</a></div>` +
+          l.dialogue.map((d, i) => `<div class="dialog-line ${i % 2 ? 'me' : ''}"><span class="who">${jp(d[0])}</span><div class="bub"><div class="row">${speakBtn(d[1])}<div class="grow"><div class="jp" style="font-size:18px">${jp(d[1])}</div><div class="pt muted" style="font-size:14px">${esc(d[2])}</div></div></div></div></div>`).join('') + `</div>`;
+      }
+      if (l.reading) h += readingHTML(l.reading);
+      if (l.mission) h += `<div class="card mission"><h3>🌏 Missão na vida real</h3><p>${esc(l.mission)}</p>
+        <button class="btn small ${S.missions[id] ? 'ghost' : ''}" id="mission-btn" ${S.missions[id] ? 'disabled' : ''}>${S.missions[id] ? '✓ Missão cumprida' : 'Cumpri a missão (+20 XP)'}</button></div>`;
+      return h + nextBtn(l, 'learn', 'Entendi');
+    },
+    ex(l) {
+      WS = buildWorksheet(l);
+      const st = S.steps[l.id], prev = st && st.exGraded ? st.ex : null;
+      let n = 0, h = `<div class="card">${tutor(`Agora é a sua vez, sem pressa e sem cronômetro. Responda, depois toque em <b>Corrigir</b>. Errar aqui é bom: mostra exatamente o que revisar.${prev != null ? `<br><small>Da última vez você acertou <b>${prev}%</b>.</small>` : ''}`)}</div><form id="ws" autocomplete="off" onsubmit="return false">`;
+      WS.forEach(sec => { h += `<div class="card ws-sec"><h3>${sec.t}</h3><p class="muted" style="margin-top:0">${sec.h}</p>`; sec.items.forEach(it => { it.n = n++; h += wsItem(it); }); h += `</div>`; });
+      h += `</form><div id="ws-score"></div><div class="row" style="justify-content:center;margin:8px 0"><button class="btn" id="ws-check">✔ Corrigir</button><button class="btn ghost" id="ws-redo" hidden>↻ Refazer com outras questões</button></div>`;
+      return h + nextBtn(l, 'ex');
+    },
+    culture(l) {
+      const c = CULTURE[l.id], done = S.culture[l.id];
+      let h = `<div class="card culture">${tutor('Para fechar a aula, um pouco do Japão por trás da língua.')}
+        <h2 style="margin:14px 0 6px">${c.ic} ${esc(c.t)}</h2><p>${esc(c.txt)}</p>
+        <div class="cq"><b>${esc(c.q[0])}</b><div class="choices" id="cq">${c.q[1].map((o, i) => `<button class="choice" data-i="${i}"><span class="n">${i + 1}</span><span>${txt(o)}</span></button>`).join('')}</div><div id="cq-fb" class="muted"></div></div></div>`;
+      h += `<div class="card mission"><h3>🎯 Atividade</h3><p>${JP.ruby(esc(c.act))}</p><button class="btn small ${done ? 'ghost' : ''}" id="act-btn" ${done ? 'disabled' : ''}>${done ? '✓ Feito' : 'Fiz a atividade (+10 XP)'}</button></div>`;
+      const more = LESSONS.find(x => x.track === 'culture' && x.module === l.module && !isDone(x)) || LESSONS.find(x => x.track === 'culture' && x.module === l.module);
+      if (more) h += `<a class="list-link" href="#/l/${more.id}"><span class="ic">${more.icon}</span><span class="grow"><b>Quer saber mais? ${esc(more.title)}</b><small>Aula completa da trilha Cultura, com vídeos e leitura</small></span>›</a>`;
+      if (!isDone(l)) h += `<div class="sticky-cta"><a class="btn block" href="#/p/${l.id}">Falta a prática: 🎮 Fazer a prática ▶</a></div>`;
+      else h += nextBtn(l, 'culture');
+      return h;
+    }
+  };
+  const STEP_BIND = {
+    learn(l) {
+      const pd = $('#play-dialog');
+      if (pd) pd.onclick = async () => { for (const d of l.dialogue) { await speak(d[1]); await new Promise(r => setTimeout(r, 350)); } };
+      const mb = $('#mission-btn');
+      if (mb) mb.onclick = () => { S.missions[l.id] = Date.now(); addXP(20); beep('win'); toast('Missão cumprida! +20 XP'); mb.disabled = true; mb.textContent = '✓ Missão cumprida'; mb.classList.add('ghost'); };
+    },
+    ex(l) {
+      $$('#ws [data-kana]').forEach(inp => {
+        const pv = inp.parentElement.querySelector('.pv');
+        inp.addEventListener('input', () => { if (pv) pv.textContent = inp.value && !JP.hasKana(inp.value) ? JP.toHiragana(inp.value) : ''; });
+      });
+      $('#ws-check').onclick = () => gradeWorksheet(l);
+      $('#ws-redo').onclick = () => router();
+    },
+    culture(l) {
+      const c = CULTURE[l.id], cq = $('#cq');
+      cq.onclick = e => {
+        const b = e.target.closest('.choice'); if (!b || cq.dataset.done) return;
+        cq.dataset.done = 1; const i = +b.dataset.i, ok = i === c.q[2];
+        $$('.choice', cq).forEach((x, j) => { x.disabled = true; if (j === c.q[2]) x.classList.add('right'); });
+        if (!ok) b.classList.add('wrong');
+        beep(ok ? 'ok' : 'bad');
+        $('#cq-fb').innerHTML = ok ? '✅ Isso mesmo!' : `Quase! A resposta certa é: <b>${txt(c.q[1][c.q[2]])}</b>`;
+        if (!stepDone(l, 'culture')) { markStep(l, 'culture'); addXP(5); }
+      };
+      const ab = $('#act-btn');
+      ab.onclick = () => { S.culture[l.id] = Date.now(); addXP(10); beep('win'); toast('Atividade feita! +10 XP'); ab.disabled = true; ab.textContent = '✓ Feito'; ab.classList.add('ghost'); markStep(l, 'culture'); };
+    }
+  };
+
+  // ---------- Exercícios escritos (folha de exercícios corrigida, sem cronômetro) ----------
+  let WS = null;
+  const PART = ['は', 'が', 'を', 'に', 'で', 'へ', 'と', 'も', 'の'];
+  function buildWorksheet(l) {
+    const secs = [], items = lessonItems(l), vocab = items.filter(i => !i.isKana), kana = items.filter(i => i.isKana);
+    const own = lessonSentences(l);
+    const sents = own.concat((l.grammar || []).flatMap(g => (g.ex || []).map(e => ({ jp: e[0], pt: e[1] }))), (l.dialogue || []).map(d => ({ jp: d[1], pt: d[2] })));
+    if (l.quiz && l.quiz.length) secs.push({ t: '🧠 Compreensão', h: 'Responda sobre o que você viu na explicação.', items: l.quiz.slice(0, 6).map(q => ({ k: 'mc', q })) });
+    if (kana.length) secs.push({ t: '👀 Leitura de kana', h: 'Escreva em romaji como se lê cada caractere.', items: pick(kana, Math.min(10, kana.length)).map(it => ({ k: 'ro', it })) });
+    const kw = kana.filter(i => i.ex && JP.hasKana(i.ex) && !/[㐀-鿿]/.test(i.ex)).map(i => ({ jp: i.ex, kana: i.ex, pt: i.exm }));
+    if (kw.length) secs.push({ t: '📖 Leia as palavras', h: 'Escreva em romaji a leitura de cada palavra.', items: pick(kw, Math.min(5, kw.length)).map(w => ({ k: 'rw', w })) });
+    const withKanji = vocab.filter(v => v.kana && v.kana !== v.jp && /[㐀-鿿]/.test(v.jp));
+    if (withKanji.length) secs.push({ t: '🈶 Leitura de kanji', h: 'Escreva a leitura em romaji ou em kana.', items: pick(withKanji, Math.min(5, withKanji.length)).map(it => ({ k: 'rd', it })) });
+    if (vocab.length) secs.push({ t: '📝 Vocabulário', h: 'Escreva em japonês. Pode digitar em romaji: o app converte para kana.', items: pick(vocab, Math.min(6, vocab.length)).map(it => ({ k: 'jp', it })) });
+    const pq = [];
+    shuffle(sents).forEach(s => {
+      if (pq.length >= 5) return;
+      const toks = s.jp.split(' ').filter(Boolean), idx = toks.map((t, i) => PART.includes(t) ? i : -1).filter(i => i >= 0);
+      if (!idx.length) return;
+      const i = idx[Math.floor(Math.random() * idx.length)], ans = toks[i];
+      pq.push({ k: 'sel', before: toks.slice(0, i).join(' '), after: toks.slice(i + 1).join(' '), ans, opts: shuffle([ans].concat(pick(PART.filter(p => p !== ans), 3))), pt: s.pt });
+    });
+    if (pq.length) secs.push({ t: '🏷️ Partículas', h: 'Escolha a partícula que completa a frase.', items: pq });
+    const fr = pick(own.length ? own : sents, 3);
+    if (fr.length) secs.push({ t: '✍️ Tradução livre', h: 'Escreva em japonês, aqui ou no caderno. Depois de corrigir, compare com o modelo e repita em voz alta.', items: fr.map(s => ({ k: 'free', s })) });
+    secs.push({ t: '📓 No caderno', h: 'Atividades fora da tela. São as que mais fixam. Marque o que fizer.', items: notebookTasks(l).map(t => ({ k: 'todo', t })) });
+    return secs;
+  }
+  function notebookTasks(l) {
+    const t = [], kana = lessonItems(l).filter(i => i.isKana), kj = lessonKanji(l);
+    if (kana.length) t.push(`Escreva à mão cada kana desta aula 5 vezes, falando o som em voz alta (${kana.slice(0, 15).map(i => i.jp).join(' ')}${kana.length > 15 ? '…' : ''}).`);
+    if (kj.length) t.push(`Copie os kanji ${kj.slice(0, 10).map(k => k.jp).join(' ')} três vezes cada, com uma palavra de exemplo ao lado.`);
+    if (l.grammar && l.grammar.length) t.push(`Escreva 3 frases suas usando: ${l.grammar[0].t.replace(/<[^>]+>|\[[^\]]*\]/g, '')}.`);
+    else if (lessonItems(l).some(i => !i.isKana)) t.push('Escreva 3 frases suas usando palavras novas desta aula (pode misturar português onde faltar vocabulário).');
+    if (l.dialogue) t.push('Leia o diálogo em voz alta 3 vezes: devagar, no ritmo normal e sem olhar a tradução.');
+    if (l.reading) t.push('Leia o texto em voz alta junto com o áudio (shadowing de leitura).');
+    t.push('Explique em voz alta, em português, o que você aprendeu hoje, como se fosse para um amigo. Ensinar é a melhor forma de fixar.');
+    return t;
+  }
+  function wsItem(it) {
+    const i = it.n, num = `<span class="wn">${i + 1}.</span>`, fb = '<div class="wfb"></div>';
+    switch (it.k) {
+      case 'mc': return `<div class="wi" data-n="${i}"><div>${num} ${JP.ruby(esc(it.q[0]))}</div><div class="wopts">${it.q[1].map((o, j) => `<label><input type="radio" name="q${i}" value="${j}"> <span>${txt(o)}</span></label>`).join('')}</div>${fb}</div>`;
+      case 'ro': return `<div class="wi inline" data-n="${i}">${num}<span class="jp wbig">${esc(it.it.jp)}</span><input class="wput" placeholder="romaji" autocapitalize="off" spellcheck="false">${fb}</div>`;
+      case 'rw': return `<div class="wi inline" data-n="${i}">${num}<span class="jp wbig" style="font-size:22px">${esc(it.w.jp)}</span><small class="muted">${esc(it.w.pt)}</small><input class="wput" placeholder="romaji" autocapitalize="off" spellcheck="false">${fb}</div>`;
+      case 'rd': return `<div class="wi inline" data-n="${i}">${num}<span class="jp wbig" style="font-size:24px">${esc(it.it.jp)}</span><small class="muted">${esc(it.it.pt)}</small><input class="wput" data-kana="1" placeholder="leitura" autocapitalize="off" spellcheck="false"><span class="pv"></span>${fb}</div>`;
+      case 'jp': return `<div class="wi inline" data-n="${i}">${num}<span>${it.it.em || ''} <b>${esc(it.it.pt)}</b></span><input class="wput" data-kana="1" placeholder="em japonês" autocapitalize="off" spellcheck="false"><span class="pv"></span>${fb}</div>`;
+      case 'sel': return `<div class="wi" data-n="${i}"><div class="jp wline">${num} ${jp(it.before)} <select class="wsel"><option value="">？</option>${it.opts.map(o => `<option>${o}</option>`).join('')}</select> ${jp(it.after)}</div><div class="muted" style="font-size:14px">${esc(it.pt)}</div>${fb}</div>`;
+      case 'free': return `<div class="wi" data-n="${i}"><div>${num} <b>${esc(it.s.pt)}</b></div><textarea class="wput" rows="2" data-kana="1" placeholder="Escreva em japonês (o romaji vira kana na prévia)" autocapitalize="off" spellcheck="false"></textarea><span class="pv"></span>${fb}</div>`;
+      default: return `<label class="wi todo"><input type="checkbox"> <span>${esc(it.t)}</span></label>`;
+    }
+  }
+  function gradeWorksheet(l) {
+    let ok = 0, tot = 0;
+    WS.flatMap(s => s.items).forEach(it => {
+      const el = app.querySelector(`.wi[data-n="${it.n}"]`); if (!el || it.k === 'todo') return;
+      const fb = $('.wfb', el), inp = $('.wput', el), v = inp ? inp.value.trim() : '';
+      let good, ans = '';
+      if (it.k === 'free') { fb.innerHTML = `Modelo: <span class="jp" style="font-size:18px">${jp(it.s.jp)}</span> ${speakBtn(it.s.jp)}`; return; }
+      if (it.k === 'mc') { const r = $('input:checked', el); good = !!r && +r.value === it.q[2]; ans = txt(it.q[1][it.q[2]]); }
+      else if (it.k === 'ro') { const x = v.toLowerCase(); good = !!x && (x === it.it.pt || JP.toHiragana(x) === JP.kataToHira(it.it.jp)); ans = esc(it.it.pt); }
+      else if (it.k === 'rw') { good = !!v && JP.kataToHira(JP.toHiragana(v.toLowerCase())) === JP.kataToHira(it.w.kana); ans = esc(toRomaji(it.w.kana)); }
+      else if (it.k === 'rd') { good = !!v && JP.normalizeAnswer(v) === JP.normalizeAnswer(it.it.kana); ans = esc(it.it.kana); }
+      else if (it.k === 'jp') { good = !!v && (JP.normalizeAnswer(v) === JP.normalizeAnswer(it.it.kana) || JP.strip(v) === JP.strip(it.it.jp)); ans = ansWord(it.it); }
+      else if (it.k === 'sel') { good = $('select', el).value === it.ans; ans = esc(it.ans); }
+      tot++; if (good) ok++;
+      el.classList.add(good ? 'ok' : 'bad');
+      fb.innerHTML = good ? '✅ Certo!' : `❌ Resposta: <b class="jp">${ans}</b>`;
+    });
+    $$('#ws input:not([type=checkbox]), #ws select, #ws textarea').forEach(x => { x.disabled = true; });
+    const pct = tot ? Math.round(100 * ok / tot) : 100;
+    const st = S.steps[l.id] = S.steps[l.id] || {}, first = !st.exGraded;
+    st.ex = pct; st.exGraded = 1; save();
+    addXP(first ? 10 : 3); beep(pct >= 60 ? 'win' : 'bad');
+    const msg = pct >= 90 ? 'Excelente! Você está pronto(a) para a prática.' : pct >= 60 ? 'Bom trabalho! Releia os itens em vermelho antes de seguir.' : `Vale a pena rever a <a href="#/l/${l.id}/learn">explicação</a> e refazer. Sem pressa: é assim que se aprende.`;
+    $('#ws-score').innerHTML = `<div class="card center"><div style="font-size:44px">${pct >= 90 ? '🏆' : pct >= 60 ? '👍' : '📘'}</div><h2 style="margin:4px 0">${pct}% de acerto <small class="muted">(${ok}/${tot})</small></h2><p style="margin:0">${msg}</p><p class="muted" style="margin:6px 0 0">+${first ? 10 : 3} XP</p></div>`;
+    $('#ws-check').hidden = true; $('#ws-redo').hidden = false;
+    $('#ws-score').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    $$('.steps .st')[lessonSteps(l).indexOf('ex')].classList.add('done');
+  }
 
   function readingHTML(r) {
     return `<div class="card"><div class="row"><h3 class="grow" style="margin:0">📖 Leitura: ${jp(r.title)}</h3>${speakBtn(r.text)}${speakSlowBtn(r.text)}</div>
       <p class="reading-text">${jp(r.text)}</p><details><summary>Ver tradução</summary><p>${esc(r.pt)}</p></details></div>`;
   }
-  function bindReading() {}
 
   // ---------- Motor de sessões (estilo Duolingo) ----------
   function distractors(item, n, field) {
@@ -416,14 +624,16 @@
       body.innerHTML = `<div class="done-screen"><div class="em">${acc >= 90 ? '🏆' : acc >= 70 ? '🎉' : '💪'}</div><h1>${opts.doneTitle || 'Prática concluída!'}</h1>
         <p class="muted">${acc >= 90 ? 'Desempenho incrível!' : acc >= 70 ? 'Muito bom! Continue assim.' : 'Errar faz parte — é assim que o cérebro aprende.'}</p>
         <div class="done-stats"><div>⚡<b>+${xp}</b>XP</div><div>🎯<b>${acc}%</b>precisão</div><div>🔥<b>${currentStreak()}</b>dias</div></div>
-        ${opts.next ? `<button class="btn block" id="done-next">Próxima aula ▶ ${esc(opts.next.title)}</button><p></p><button class="btn ghost block" id="done-ok">Voltar à trilha</button>` : `<button class="btn block" id="done-ok">Continuar</button>`}</div>`;
+        ${opts.cont ? `<button class="btn block" id="done-cont">${esc(opts.cont.label)} ▶</button><p></p><button class="btn ghost block" id="done-ok">Voltar ao início</button>`
+          : opts.next ? `<button class="btn block" id="done-next">Próxima aula ▶ ${esc(opts.next.title)}</button><p></p><button class="btn ghost block" id="done-ok">Voltar ao início</button>` : `<button class="btn block" id="done-ok">Continuar</button>`}</div>`;
       $('#done-ok').onclick = () => opts.onExit ? opts.onExit() : go(opts.back || '/');
-      if (opts.next) $('#done-next').onclick = () => go('/l/' + opts.next.id);
+      if (opts.cont) $('#done-cont').onclick = () => go(opts.cont.href);
+      else if (opts.next) $('#done-next').onclick = () => go('/l/' + opts.next.id);
     }
     document.onkeydown = e => {
       if (!document.body.classList.contains('in-session')) { document.onkeydown = null; return; }
       if (e.target.tagName === 'INPUT' && e.key !== 'Enter') return;
-      if (e.key === 'Enter') { if (!check.disabled && check.style.display !== 'none' && footer.style.display !== 'none') { e.preventDefault(); check.click(); } else { const d = $('#done-next') || $('#done-ok'); if (d) d.click(); } }
+      if (e.key === 'Enter') { if (!check.disabled && check.style.display !== 'none' && footer.style.display !== 'none') { e.preventDefault(); check.click(); } else { const d = $('#done-cont') || $('#done-next') || $('#done-ok'); if (d) d.click(); } }
       else if (/^[1-9]$/.test(e.key)) { const c = $$('.choice:not(:disabled)', body)[+e.key - 1]; if (c) c.click(); }
     };
     next();
@@ -665,14 +875,16 @@
     if (micOK()) pick(sents, 2).forEach(s => ra('speak', { s }));
     ex.push(...shuffle(rest));
     if (l.reading) { add('reading', { r: l.reading, noScore: true }); l.reading.q.forEach(q => add('quiz', { q })); }
-    (l.quiz || []).forEach(q => add('quiz', { q }));
+    // As perguntas de compreensão ficam nos exercícios escritos; só entram aqui se eles foram pulados
+    if (!(S.steps[l.id] && S.steps[l.id].exGraded)) (l.quiz || []).forEach(q => add('quiz', { q }));
     return ex;
   }
   route(/^\/p\/(\w+)$/, id => {
     const l = LESSON[id]; if (!l) return go('/');
     if (!isUnlocked(l)) return go('/');
+    const cont = CULTURE[id] && !stepDone(l, 'culture') ? { label: 'Próximo passo: 🏮 Cultura', href: '/l/' + id + '/culture' } : null;
     startSession({
-      exercises: buildLessonSession(l), back: '/l/' + id, baseXP: l.checkpoint ? 30 : 15, next: LESSONS[l.index + 1],
+      exercises: buildLessonSession(l), back: '/l/' + id, baseXP: l.checkpoint ? 30 : 15, next: LESSONS[l.index + 1], cont,
       doneTitle: isDone(l) ? 'Prática concluída!' : 'Aula concluída!',
       onExit: () => go(isDone(l) ? '/' : '/l/' + id),
       onFinish({ acc }) {
@@ -682,6 +894,30 @@
         lessonItems(l).concat(lessonKanji(l)).forEach(it => srsAdd(it, true));
       }
     });
+  });
+
+  // ---------- Vídeos: biblioteca por tema ----------
+  route(/^\/videos$/, () => {
+    setTab('videos');
+    const J = window.JENNI, L = window.LIBRARY || [];
+    let h = `<h1>🎬 Vídeos</h1><p class="muted" style="margin-top:0">Aulas em vídeo por tema: o seu curso da Jenni, o canal gratuito dela e vídeos gratuitos selecionados sobre a língua, a cultura, a história e a sociedade do Japão.</p>
+      <input class="search" id="vq" type="search" placeholder="🔎 Buscar (ex.: partículas, samurai, kanji, Okinawa)">
+      <div class="chips">${L.map(c => `<button class="chip" data-vs="${c.id}">${c.icon} ${esc(c.title)}</button>`).join('')}<button class="chip" data-vs="aulas">📚 Por aula</button></div>${offlineNote()}`;
+    if (J) h += `<details class="card jenni"><summary><b>👩‍🏫 Seu curso: ${esc(J.course)} (Jenni sensei)</b></summary><p class="muted">Abre no Hotmart, com o seu login. Cada aula do Michi já indica a parte certa do curso no passo "Vídeos".</p>
+      ${Object.values(J.mods).map(m => `<a class="list-link" href="${m[1]}" target="_blank" rel="noopener"><span class="ic">📺</span><span class="grow"><b>${esc(m[0])}</b></span>↗</a>`).join('')}</details>`;
+    L.forEach(c => { h += `<section class="vsec" id="vs-${c.id}"><h2>${c.icon} ${esc(c.title)}</h2><p class="muted" style="margin-top:0">${esc(c.desc)}</p><div class="videos">${c.v.map(videoCard).join('')}</div></section>`; });
+    h += `<section class="vsec" id="vs-aulas"><h2>📚 Vídeos por aula</h2><p class="muted" style="margin-top:0">Abra a aula direto no passo de vídeos.</p>` + MODULES.map(m => `<details class="card"><summary><b>${m.icon} ${esc(m.title)}</b> <small class="muted">${esc(m.level)}</small></summary>${m.lessons.filter(l => !l.checkpoint).map(l => `<a class="list-link" href="#/l/${l.id}/video"><span class="ic">${l.icon}</span><span class="grow"><b>${esc(l.title)}</b><small>${TRACKS[l.track][1]} ${TRACKS[l.track][0]} · ${lessonVideos(l).length} vídeos</small></span>›</a>`).join('')}</details>`).join('') + `</section>`;
+    app.innerHTML = h;
+    bindVideos(app);
+    $$('[data-vs]').forEach(b => b.onclick = () => $('#vs-' + b.dataset.vs).scrollIntoView({ behavior: 'smooth' }));
+    $('#vq').oninput = e => {
+      const q = e.target.value.trim().toLowerCase();
+      $$('.vsec').forEach(sec => {
+        let any = false;
+        $$('.video', sec).forEach(v => { const show = !q || v.dataset.q.includes(q); v.hidden = !show; any = any || show; });
+        sec.hidden = !!q && (sec.id === 'vs-aulas' || !any);
+      });
+    };
   });
 
   // ---------- Revisão (SRS) ----------

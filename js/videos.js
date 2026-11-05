@@ -1,14 +1,14 @@
 // Vídeos gratuitos do YouTube selecionados para cada aula: [id, canal, título, idioma]
 // Os vídeos pertencem aos seus criadores; aqui são apenas incorporados/linkados.
 window.VIDEOS = {
-  m0l1: [['BlsmNNovnFQ','Eu Estudando','Como pronunciar o japonês — vogais','pt'],['c9OArpr2A78','Speak Japanese Naturally','Noções básicas sobre a entonação japonesa','pt'],['jt04eg9T2sE','Kaname Naito','Basics of Japanese Pitch Accent','en']],
+  m0l1: [['BlsmNNovnFQ','Eu Estudando','Como pronunciar o japonês — vogais','pt'],['c9OArpr2A78','Speak Japanese Naturally','The very basics of Japanese pitch accent','en'],['jt04eg9T2sE','Kaname Naito','Basics of Japanese Pitch Accent','en']],
   m0l2: [['7TpHCqXcHr0','Tae Kim','Aprenda japonês do zero — sons /k/ e /s/ em hiragana','pt'],['NCttJF2Mxno','Japanerd Pal','Como escrever hiragana (linha あ, か)','pt'],['6p9Il_j0zjc','JapanesePod101','Learn ALL Hiragana in 1 Hour','en']],
   m0l3: [['bVeCbMeLmEA','O Caminho do Japonês','Curso completo de hiragana: aula 1','pt'],['KOVNWuDrSrI','Japanerd Pal','Como escrever hiragana (linha さ, た, な)','pt'],['e8ExnPnE5Ao','The True Japan','How to Read Hiragana: The Ta-Row','en']],
   m0l4: [['zFIXuZWlyGQ','HIDETCHI','Hiragana: ma, ya, ra, wa, n','pt'],['F4LEgqyBij0','NihongoYou','Hiragana MA–N — caligrafia','pt'],['1YqbH-ThU-U','Japanese for Creative Hearts','Reading Hiragana: MA, YA, RA, WA','en']],
   m0l5: [['PRnDxsbM_WA','Big Bong','Diacríticos do hiragana: dakuten e handakuten','pt'],['Mu4VdIzaODE','faleemjapones','Hiragana (6): dakuon e handakuon','pt'],['b2fLwA5VTp4','Nihongio','Hiragana with Dakuten and Handakuten','en']],
   m0l6: [['gHwrbIeg2Q0','Marnihongo','Katakana — como ler e escrever','pt'],['4IzFp5-wCzg',"Satou's Nihongo Playground",'Katakana: learn with mnemonics','en'],['s6DKRgtVLGA','JapanesePod101','Learn ALL Katakana in 1 Hour','en']],
   m0l7: [['9MJAPR4CnlY','Hakon Soreide','Katakana estendido','pt'],['H5vTNnpeKFg','123 Japonês','8 situações para usar o katakana','pt'],['vfe9mzrLwkE','Tsubomi Nihongo','Additional katakana syllables','en']],
-  m0l8: [['J_ToujQ6pvc','123 Japonês','Leituras ON e KUN: como diferenciar','pt'],['TIxOGi26P0I','Kensei Sensei','Tudo o que você precisa saber sobre kanji','pt'],['N6yJpQ9tK78','NihongoDekita with Sayaka','Kanji 101: how kanji actually work','en']],
+  m0l8: [['J_ToujQ6pvc','123 Japonês','Leituras ON e KUN: como diferenciar','pt'],['TIxOGi26P0I','Kensei Sensei','Everything you need to know about kanji','en'],['N6yJpQ9tK78','NihongoDekita with Sayaka','Kanji 101: how kanji actually work','en']],
   m1l1: [['XTHAyl4MEhA','123 Japonês','Cumprimentos básicos','pt'],['CqwE1F0XEL4','TOMO sensei','Saudações básicas em japonês','pt'],['t1iTJK31UYw','Kaname Naito','First-time greeting in Japanese','en']],
   m1l2: [['sXBwOUEPnyY','Emmy Sensei','Como se apresentar em japonês','pt'],['DpCJaRaghlM','Kizunajp','Como se apresentar em japonês (jiko shoukai)','pt'],['UsaNCx8Xzl0','Speak Japanese Naturally','Self-introduction with pitch accent','en']],
   m1l3: [['dZARRSQ7VjA','Emmy Sensei','Números em japonês: de 1 a 1.000.000','pt'],['qqT1oL7Edyk','NihongoDekita with Sayaka','Como contar em japonês','pt'],['8KiUJ6vfmtQ','Japarrot!','Sing numbers in Japanese 1–99','en']],

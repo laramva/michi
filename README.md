@@ -1,13 +1,15 @@
 # Michi 道 — Japonês do zero ao avançado
 
-Plataforma gratuita, estilo Duolingo, para levar alguém que não sabe nada de japonês até o nível avançado (C1 / JLPT N1) em **fala, escuta, leitura e escrita**. Funciona **offline**, salva o progresso no aparelho e não depende de nenhum servidor ou serviço pago.
+Plataforma gratuita que funciona como um **professor particular**: leva alguém que não sabe nada de japonês até o nível avançado (C1 / JLPT N1) em **fala, escuta, leitura e escrita**, ensinando também a **cultura, a história e a sociedade** do Japão. Funciona **offline**, salva o progresso no aparelho e não depende de nenhum servidor ou serviço pago.
 
 ## O que tem
 
-- **162 aulas em 6 módulos**: Fundamentos (pré-A1) → A1/N5 → A2/N4 → B1/N3 → B2/N2 → C1/N1
-- **6 trilhas misturadas na ordem certa**: gramática (64 aulas), **kanji** (36 aulas, 360 kanji do N5 ao N3), **vocabulário temático** (30 aulas, ~360 palavras), **situações reais** (15 diálogos de sobrevivência e trabalho), **histórias** (12 leituras graduadas originais) e **revisões gerais** de cada módulo
-- Tela inicial com um botão **"Estudar agora"** (faz as revisões do dia e já abre a próxima aula), plano do dia e filtros por trilha
-- Cada aula de gramática traz objetivos ("ao final você vai conseguir"), vocabulário com imagens, kanji, gramática explicada em português, frases-chave, diálogo, leitura, **3 vídeos gratuitos do YouTube**, uma técnica de estudo e uma **missão na vida real**
+- **185 aulas em 6 módulos**: Fundamentos (pré-A1) → A1/N5 → A2/N4 → B1/N3 → B2/N2 → C1/N1
+- **Cada aula é guiada em 6 passos**: 👩‍🏫 professor (o que e por que estudar) → 🎬 vídeos (curso da Jenni + vídeos gratuitos) → 📘 explicação escrita com áudio → ✍️ exercícios escritos com correção → 🎮 prática estilo jogo → 🏮 cápsula cultural com atividade
+- **Fundamentos para iniciantes**: como o japonês funciona (3 escritas, ordem da frase), sons e ritmo (mora, っ, ん, tom), estrutura da frase, partículas e níveis de polidez
+- **7 trilhas misturadas na ordem certa**: gramática, **kanji** (360 kanji do N5 ao N3), **vocabulário temático**, **situações reais**, **histórias** graduadas, **cultura e sociedade** (18 aulas: história, religião, etiqueta, comida, festas, escola, trabalho, imigração no Brasil, sociedade atual, cultura pop, estética, desastres, artes e regiões) e **revisões gerais**
+- Aba **Vídeos** com ~130 vídeos por tema (sons, kana, kanji, estrutura, história, costumes, sociedade, Japão e Brasil, artes, regiões, imersão), o canal gratuito da Jenni e links para cada módulo do curso *Jornada Japonês Express*
+- Tela inicial com o professor dizendo onde você está e qual é o próximo passo, plano do dia e mapa do curso
 - Exercícios: apresentação de palavras, múltipla escolha, escuta, pares, digitação (romaji → kana automático), montar frases, ditado, **fala com nota de pronúncia**, **escrita à mão** com guia e leitura com perguntas
 - **Revisão espaçada (SRS)**: cada item volta pouco antes de você esquecer
 - Aba **Kana** com tabelas completas, mnemônicos em português e treino de leitura/escrita
