@@ -1,7 +1,7 @@
 // Michi 道 — app principal (sem dependências, funciona offline).
 (function () {
   'use strict';
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '1.3.1';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const app = $('#app');
@@ -75,7 +75,7 @@
   const STORE = 'michi.state.v1';
   const DEFAULT = {
     v: 1, created: Date.now(), xp: 0, streak: 0, lastDay: null, days: {}, goal: 30, startAt: 0, onboarded: false,
-    lessons: {}, missions: {}, srs: {}, noMicUntil: 0, steps: {}, culture: {},
+    lessons: {}, missions: {}, srs: {}, noMicUntil: 0, steps: {}, culture: {}, devices: {},
     settings: { furigana: true, romaji: false, rate: 0.9, voice: '', unlockAll: false, sound: true, theme: 'auto' }
   };
   let S;
@@ -1216,7 +1216,7 @@
     M.xp = add(L.xp, R.xp, B && B.xp);
     M.days = {};
     Object.keys(Object.assign({}, L.days, R.days)).forEach(d => { M.days[d] = add(L.days[d], R.days[d], B ? (B.days || {})[d] || 0 : null); });
-    ['lessons', 'missions', 'culture', 'steps'].forEach(k => { M[k] = union(L[k], R[k]); });
+    ['lessons', 'missions', 'culture', 'steps', 'devices'].forEach(k => { M[k] = union(L[k], R[k]); });
     // Revisões: vale a versão do cartão que mudou (ou a revisada por último)
     M.srs = {};
     const later = (l, r) => (l.t || 0) !== (r.t || 0) ? ((l.t || 0) > (r.t || 0) ? l : r) : (l.reps + l.lapses >= r.reps + r.lapses ? l : r);
@@ -1224,7 +1224,9 @@
       const l = L.srs[k], r = R.srs[k], b = B && B.srs && B.srs[k];
       M.srs[k] = !l ? r : !r ? l : b && same(l, b) ? r : b && same(r, b) ? l : later(l, r);
     });
-    const pick = k => B ? (same(L[k], B[k]) ? R[k] : L[k]) : (R.onboarded ? R[k] : L[k]);
+    // Primeira vez juntando dois aparelhos: valem as escolhas de quem já estudou mais
+    const rWins = R.onboarded && (!L.onboarded || (R.xp || 0) >= (L.xp || 0));
+    const pick = k => B ? (same(L[k], B[k]) ? R[k] : L[k]) : (rWins ? R[k] : L[k]);
     M.goal = pick('goal'); M.startAt = pick('startAt');
     M.onboarded = !!(L.onboarded || R.onboarded);
     M.created = Math.min(L.created || Date.now(), R.created || Date.now());
@@ -1243,6 +1245,11 @@
     if (!navigator.onLine) { if (manual === true) toast('Sem internet: sincronizo quando a conexão voltar.'); return; }
     if (document.body.classList.contains('in-session')) { syncSoon(); return; } // não mexe no progresso no meio de uma prática
     syncBusy = true; syncDirty = false; clearTimeout(syncTimer);
+    // Marca este aparelho na lista de aparelhos conectados (atualiza a cada 10 min no máximo)
+    if (!sync.id) { sync.id = Math.random().toString(36).slice(2, 10); saveSync(); }
+    S.devices = S.devices || {};
+    const me = S.devices[sync.id];
+    if (!me || me.n !== deviceName() || Date.now() - me.t > 10 * 60000) S.devices[sync.id] = { n: deviceName(), t: Date.now() };
     const before = JSON.stringify(shared(S));
     try {
       if (!sync.gist) {
@@ -1288,8 +1295,11 @@
   function ago(t) { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'agora há pouco' : m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.round(m / 60)} h` : `há ${Math.round(m / 1440)} dia(s)`; }
   function deviceName() { const u = navigator.userAgent; return /iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1) ? 'iPad' : /iPhone/.test(u) ? 'iPhone' : /Android/.test(u) ? 'Android' : 'PC'; }
   function syncCard() {
+    const devs = Object.entries(S.devices || {}).sort((a, b) => b[1].t - a[1].t);
     if (sync) return `<div class="card" id="sync-card"><h3>🔄 Sincronizar aparelhos</h3>
       <p style="margin-top:0">✅ Conectado. ${sync.last ? `Última sincronização: <b>${ago(sync.last)}</b>.` : 'Sincronizando…'}</p>${sync.err ? `<div class="warn">${esc(sync.err)}</div>` : ''}
+      ${devs.length ? `<p style="margin-bottom:4px"><b>Aparelhos conectados:</b></p><ul class="sync-devs">${devs.map(([id, d]) => `<li>${/PC/.test(d.n) ? '💻' : '📱'} <b>${esc(d.n)}</b>${id === sync.id ? ' (este)' : ''} · visto ${ago(d.t)}</li>`).join('')}</ul>
+      ${devs.length < 2 ? `<div class="warn">Só este aparelho está conectado. Faça a conexão também no outro aparelho (PC ou iPad) para o progresso ficar igual nos dois.</div>` : ''}` : ''}
       <p class="muted">Aulas, XP, revisões e sequência de dias se juntam sozinhos entre os aparelhos conectados sempre que você abre o app ou estuda com internet. Tema, voz e velocidade ficam separados em cada aparelho.</p>
       <div class="row"><button class="btn small" id="sync-now">Sincronizar agora</button><button class="btn small ghost" id="sync-off">Desconectar este aparelho</button></div></div>`;
     const note = encodeURIComponent(`Michi ${deviceName()} ${todayKey()} ${new Date().toTimeString().slice(0, 5)}`);

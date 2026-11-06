@@ -1,6 +1,6 @@
 ﻿// Service Worker: deixa o Michi 100% offline e aplica atualizações sozinho quando você publica uma versão nova.
 // Para lançar uma atualização: altere VERSION (e APP_VERSION em js/app.js) e publique os arquivos.
-const VERSION = 'michi-v1.3.0';
+const VERSION = 'michi-v1.3.1';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/romaji.js', 'js/kana-data.js', 'js/course-m0.js', 'js/course-m1.js', 'js/course-m2.js',
