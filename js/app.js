@@ -1,7 +1,7 @@
 // Michi 道 — app principal (sem dependências, funciona offline).
 (function () {
   'use strict';
-  const APP_VERSION = '1.3.1';
+  const APP_VERSION = '1.4.0';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const app = $('#app');
@@ -289,6 +289,7 @@
       ${stepsBar(cur, step)}
       <a class="btn block" href="${stepHref(cur, step)}" style="margin-top:12px">▶ ${started ? 'Continuar' : 'Começar'}: ${STEP[step][0]} ${STEP[step][1]}</a>
       ${due ? `<button class="btn ghost block" id="rev-first" style="margin-top:10px">🔁 Revisar ${Math.min(20, due)} itens primeiro</button>` : ''}</div>`;
+    h += accountHint();
     h += `<div class="card"><h3 style="margin-bottom:6px">📅 Plano de hoje</h3>
       <div class="plan"><span class="${due ? '' : 'ok'}">${due ? '⬜' : '✅'} Revisões em dia</span><span class="${lessonsToday ? 'ok' : ''}">${lessonsToday ? '✅' : '⬜'} 1 aula completa</span><span class="${today >= S.goal ? 'ok' : ''}">${today >= S.goal ? '✅' : '⬜'} Meta: ${today}/${S.goal} XP</span></div></div>`;
     h += `<div class="card"><h3 style="margin-bottom:4px">🗺️ Seu caminho</h3>${MODULES.map(m => {
@@ -313,6 +314,7 @@
       h += `</div></section>`;
     });
     app.innerHTML = h;
+    bindAccountHint();
     const rf = $('#rev-first');
     if (rf) rf.onclick = () => reviewSession(dueKeys().slice(0, 20), true, () => go(stepHref(cur, step).slice(1)), 'Revisão feita! Agora, a aula de hoje.');
     $$('[data-mod]').forEach(b => b.onclick = () => $('#mod-' + b.dataset.mod).scrollIntoView({ behavior: 'smooth' }));
@@ -1086,6 +1088,7 @@
     const voices = jaVoices.map(v => `<option ${v.name === S.settings.voice ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
     const sw = (k, label, sub) => `<div class="setting"><span>${label}${sub ? `<br><small class="muted">${sub}</small>` : ''}</span><label class="switch"><input type="checkbox" data-set="${k}" ${S.settings[k] ? 'checked' : ''}><span></span></label></div>`;
     app.innerHTML = `<h1>👤 Perfil</h1>
+      ${accountCard()}
       <div class="statgrid"><div class="statbox">🔥<b>${currentStreak()}</b>${currentStreak() === 1 ? 'dia seguido' : 'dias seguidos'}</div><div class="statbox">⚡<b>${S.xp}</b>XP total</div><div class="statbox">🎓<b>${done}/${LESSONS.length}</b>aulas</div>
       <div class="statbox">📚<b>${words}</b>palavras</div><div class="statbox">あ<b>${kanaN}</b>kana</div><div class="statbox">🈶<b>${kanjiN}</b>kanji</div></div>
       <div class="card"><h3>Nível atual: ${level}</h3><p class="muted" style="margin-top:0">Últimos 30 dias</p><div class="heat">${heat}</div></div>
@@ -1101,7 +1104,6 @@
         <div class="setting"><span></span><button class="btn small blue" data-say="こんにちは。日本語の勉強、がんばりましょう！">🔊 Testar voz</button></div>
         ${jaVoices.length ? '' : `<div class="warn"><b>Nenhuma voz japonesa encontrada.</b> Para ouvir os áudios mesmo offline: <br>• <b>Windows</b>: Configurações → Hora e idioma → Fala → Adicionar vozes → Japonês.<br>• <b>Android</b>: Configurações → Idioma → Saída de texto para fala → Google → instalar dados de voz em japonês.<br>• <b>iPhone</b>: Ajustes → Acessibilidade → Conteúdo Falado → Vozes → Japonês.<br>No Chrome/Edge com internet, vozes online também funcionam.</div>`}
       </div>
-      ${syncCard()}
       <div class="card"><h3>💾 Seus dados</h3><p class="muted" style="margin-top:0">O progresso fica salvo neste aparelho e funciona offline. Faça backup para levar a outro celular/computador.</p>
         <div class="row"><button class="btn small" id="exp">Exportar backup</button><label class="btn small blue" style="cursor:pointer">Importar backup<input type="file" id="imp" accept=".json,application/json" hidden></label>
         <button class="btn small ghost" id="upd">Verificar atualização</button><button class="btn small ghost" id="inst" hidden>📲 Instalar app</button></div>
@@ -1122,8 +1124,8 @@
       f.text().then(t => { const d = JSON.parse(t); if (!d || typeof d.xp !== 'number' || !d.srs) throw 0; localStorage.setItem(STORE, JSON.stringify(d)); load(); applySettings(); updateTop(); toast('Backup importado!'); router(); })
         .catch(() => toast('Arquivo de backup inválido.'));
     };
-    $('#reset').onclick = () => { if (confirm('Apagar TODO o progresso deste aparelho? Isso não pode ser desfeito.' + (sync ? ' Ele também será desconectado da sincronização (a cópia no GitHub continua lá).' : '')) && confirm('Tem certeza? Exporte um backup antes, se quiser.')) { syncOff(); localStorage.removeItem(STORE); load(); save(); updateTop(); go('/'); location.reload(); } };
-    bindSyncCard();
+    $('#reset').onclick = () => { if (confirm('Apagar TODO o progresso deste aparelho? Isso não pode ser desfeito.' + (acc ? ' Você também vai sair da conta neste aparelho (o progresso salvo na conta continua lá).' : '')) && confirm('Tem certeza? Exporte um backup antes, se quiser.')) { accOut(); localStorage.removeItem(STORE); load(); save(); updateTop(); go('/'); location.reload(); } };
+    bindAccountCard();
     $('#upd').onclick = checkUpdate;
     if (deferredInstall) { $('#inst').hidden = false; $('#inst').onclick = () => { deferredInstall.prompt(); deferredInstall = null; $('#inst').hidden = true; }; }
   });
@@ -1135,12 +1137,9 @@
     el.innerHTML = `<div class="modal"><div class="center"><div style="font-size:60px">⛩️</div><h2>ようこそ！ Bem-vindo(a) ao Michi</h2>
       <p class="muted">Seu caminho (道) do zero ao japonês avançado: fala, escuta, leitura e escrita. Tudo funciona offline e fica salvo no seu aparelho.</p></div>
       <h3>Qual é o seu nível?</h3><div class="opt-list">${starts.map((s, i) => `<button class="list-link" data-s="${s[2]}"><span class="ic">${['🌱', 'あ', '🌸', '🎋'][i]}</span><span class="grow"><b>${s[0]}</b><small>${s[1]}</small></span></button>`).join('')}
-      <button class="list-link" id="onb-sync"><span class="ic">🔄</span><span class="grow"><b>Já estudo em outro aparelho</b><small>Trazer meu progresso do PC/iPad</small></span></button></div></div>`;
+      ${cloudReady ? `<button class="list-link" id="onb-acc"><span class="ic">🔐</span><span class="grow"><b>Já tenho conta Michi</b><small>Entrar e continuar de onde parei</small></span></button>` : ''}</div></div>`;
     document.body.appendChild(el);
-    $('#onb-sync', el).onclick = e => {
-      e.stopPropagation(); el.remove(); go('/profile');
-      setTimeout(() => { const c = $('#sync-card'); if (c) { c.scrollIntoView({ behavior: 'smooth' }); const t = $('#sync-token'); if (t) t.focus({ preventScroll: true }); } }, 150);
-    };
+    if ($('#onb-acc', el)) $('#onb-acc', el).onclick = e => { e.stopPropagation(); el.remove(); go('/profile'); setTimeout(focusAccount, 150); };
     el.addEventListener('click', function pickStart(e) {
       const b = e.target.closest('[data-s]'); if (!b) return;
       el.removeEventListener('click', pickStart);
@@ -1186,16 +1185,23 @@
   window.addEventListener('online', () => toast('Conectado à internet.'));
   window.addEventListener('offline', () => toast('Modo offline: suas aulas continuam funcionando.'));
 
-  // ---------- Sincronização entre aparelhos (PC ⇄ iPad ⇄ celular) ----------
-  // O progresso vai para um Gist secreto na conta do GitHub do aluno. Cada aparelho guarda a última
-  // versão combinada (base) para saber o que mudou nele desde então e juntar sem perder nada.
-  const SYNC = 'michi.sync.v1', SYNC_FILE = 'michi-progresso.json', SYNC_DESC = 'Michi 道 — progresso (sincronização entre aparelhos)';
+  // ---------- Conta Michi e sincronização (PC ⇄ iPad ⇄ celular ⇄ qualquer navegador) ----------
+  // Conta grátis com e-mail e senha (Firebase Authentication) e progresso na nuvem (Cloud Firestore), pela
+  // API REST, sem bibliotecas. Cada aparelho guarda a última versão combinada (base) para saber o que
+  // mudou nele desde então e juntar sem perder nada.
+  const FB = window.MICHI_CLOUD || {};
+  const cloudReady = !!(FB.apiKey && FB.projectId);
+  const ACC = 'michi.account.v1';
   const LOCAL_KEYS = ['settings', 'noMicUntil']; // tema, voz e velocidade ficam em cada aparelho (as vozes do PC e do iPad são diferentes)
-  let sync = null, syncBase = null, syncBusy = false, syncDirty = false, syncTimer = 0;
-  try { sync = JSON.parse(localStorage.getItem(SYNC)); syncBase = JSON.parse(localStorage.getItem(SYNC + '.base')); } catch (e) {}
-  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  let acc = null, syncBase = null, syncBusy = false, syncDirty = false, syncTimer = 0;
+  try { acc = JSON.parse(localStorage.getItem(ACC)); syncBase = JSON.parse(localStorage.getItem(ACC + '.base')); } catch (e) {}
+  try { localStorage.removeItem('michi.sync.v1'); localStorage.removeItem('michi.sync.v1.base'); } catch (e) {} // sincronização antiga (GitHub)
+  // Compara ignorando a ordem das chaves
+  const stable = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((a, x) => { a[x] = v[x]; return a; }, {}) : v);
+  const same = (a, b) => stable(a) === stable(b);
+  const clone = o => JSON.parse(JSON.stringify(o));
   function shared(s) { const o = Object.assign({}, s); LOCAL_KEYS.forEach(k => delete o[k]); return o; }
-  function saveSync() { try { if (sync) localStorage.setItem(SYNC, JSON.stringify(sync)); else localStorage.removeItem(SYNC); if (syncBase) localStorage.setItem(SYNC + '.base', JSON.stringify(syncBase)); else localStorage.removeItem(SYNC + '.base'); } catch (e) {} }
+  function saveAcc() { try { if (acc) localStorage.setItem(ACC, JSON.stringify(acc)); else localStorage.removeItem(ACC); if (syncBase) localStorage.setItem(ACC + '.base', JSON.stringify(syncBase)); else localStorage.removeItem(ACC + '.base'); } catch (e) {} }
   // Junta conquistas: o que foi concluído em qualquer aparelho continua concluído
   function union(a, b) {
     if (a == null) return b; if (b == null) return a;
@@ -1209,7 +1215,7 @@
     return Math.max(n, 1);
   }
   function mergeState(L, R, B) {
-    R = Object.assign(JSON.parse(JSON.stringify(DEFAULT)), R);
+    R = Object.assign(clone(DEFAULT), R);
     const M = Object.assign({}, L, shared(R));
     // XP e XP por dia: soma o que cada aparelho ganhou desde a última sincronização
     const add = (l, r, b) => b == null ? Math.max(l || 0, r || 0) : (r || 0) + Math.max(0, (l || 0) - b);
@@ -1234,93 +1240,174 @@
     M.streak = Math.max(streakFrom(M.days, M.lastDay), ...[L, R].filter(s => s.lastDay === M.lastDay).map(s => s.streak || 0));
     return M;
   }
-  async function ghApi(path, method, body) {
-    const r = await fetch('https://api.github.com' + path, { method: method || 'GET', cache: 'no-store', headers: { Authorization: 'Bearer ' + sync.token, Accept: 'application/vnd.github+json' }, body: body ? JSON.stringify(body) : undefined });
-    if (!r.ok) { const e = new Error('GitHub ' + r.status); e.status = r.status; throw e; }
-    return r.json();
+
+  // --- Firebase pela API REST ---
+  const AUTH_ERR = {
+    EMAIL_EXISTS: 'Já existe uma conta com este e-mail. Toque em “Entrar”.',
+    EMAIL_NOT_FOUND: 'Não existe conta com este e-mail. Toque em “Criar conta”.',
+    INVALID_PASSWORD: 'Senha incorreta.', INVALID_LOGIN_CREDENTIALS: 'E-mail ou senha incorretos. Se ainda não tem conta, toque em “Criar conta”.',
+    INVALID_EMAIL: 'Esse e-mail não parece certo. Confira e tente de novo.', MISSING_EMAIL: 'Digite seu e-mail.', MISSING_PASSWORD: 'Digite uma senha.',
+    WEAK_PASSWORD: 'A senha precisa ter pelo menos 6 caracteres.', TOO_MANY_ATTEMPTS_TRY_LATER: 'Muitas tentativas. Espere alguns minutos e tente de novo.',
+    USER_DISABLED: 'Esta conta foi desativada.', TOKEN_EXPIRED: 'Sua sessão expirou. Entre de novo na conta.', INVALID_REFRESH_TOKEN: 'Sua sessão expirou. Entre de novo na conta.',
+    USER_NOT_FOUND: 'Esta conta não existe mais. Entre de novo ou crie outra.', OPERATION_NOT_ALLOWED: 'As contas ainda não foram ativadas no servidor.'
+  };
+  const SESSION_GONE = ['TOKEN_EXPIRED', 'INVALID_REFRESH_TOKEN', 'USER_NOT_FOUND', 'USER_DISABLED'];
+  function cloudError(code, status) { const e = new Error(code || 'HTTP ' + status); e.code = code || ''; e.status = status || 0; return e; }
+  const errCode = j => ((j && j.error && (j.error.message || j.error.status)) || '').split(/[ :]/)[0];
+  async function authApi(path, body, headers) {
+    const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:${path}?key=${FB.apiKey}`, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, headers), body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw cloudError(errCode(j), r.status);
+    return j;
   }
-  function syncSoon() { if (!sync) return; syncDirty = true; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 15000); }
+  function setSession(j) {
+    acc = Object.assign(acc || {}, { uid: j.localId || j.user_id || acc.uid, email: j.email || acc.email, idToken: j.idToken || j.id_token, refresh: j.refreshToken || j.refresh_token, exp: Date.now() + (+(j.expiresIn || j.expires_in) || 3600) * 1000 });
+    saveAcc();
+  }
+  async function idToken() {
+    if (acc.idToken && Date.now() < acc.exp - 120000) return acc.idToken;
+    const r = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FB.apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(acc.refresh) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw cloudError(errCode(j), r.status);
+    setSession(j); return acc.idToken;
+  }
+  const docUrl = () => `https://firestore.googleapis.com/v1/projects/${FB.projectId}/databases/(default)/documents/progress/${acc.uid}`;
+  async function cloudGet() {
+    const r = await fetch(docUrl(), { headers: { Authorization: 'Bearer ' + await idToken() }, cache: 'no-store' });
+    if (r.status === 404) return { data: null, time: null };
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw cloudError(errCode(j), r.status);
+    return { data: JSON.parse(j.fields.data.stringValue), time: j.updateTime };
+  }
+  // Grava só se ninguém mudou a nuvem desde a leitura; se mudou, devolve false para ler e juntar de novo
+  async function cloudPut(data, time) {
+    const pre = time ? 'currentDocument.updateTime=' + encodeURIComponent(time) : 'currentDocument.exists=false';
+    const r = await fetch(docUrl() + '?' + pre, { method: 'PATCH', headers: { Authorization: 'Bearer ' + await idToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { data: { stringValue: JSON.stringify(data) }, at: { timestampValue: new Date().toISOString() } } }) });
+    if (r.ok) return true;
+    const j = await r.json().catch(() => ({}));
+    if (['FAILED_PRECONDITION', 'ALREADY_EXISTS', 'NOT_FOUND'].includes(errCode(j)) || r.status === 409) return false;
+    throw cloudError(errCode(j), r.status);
+  }
+
+  function syncSoon() { if (!acc || !cloudReady) return; syncDirty = true; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 8000); }
   async function syncNow(manual) {
-    if (!sync || syncBusy) return;
+    if (!acc || !cloudReady || syncBusy) return;
     if (!navigator.onLine) { if (manual === true) toast('Sem internet: sincronizo quando a conexão voltar.'); return; }
     if (document.body.classList.contains('in-session')) { syncSoon(); return; } // não mexe no progresso no meio de uma prática
     syncBusy = true; syncDirty = false; clearTimeout(syncTimer);
-    // Marca este aparelho na lista de aparelhos conectados (atualiza a cada 10 min no máximo)
-    if (!sync.id) { sync.id = Math.random().toString(36).slice(2, 10); saveSync(); }
+    // Marca este aparelho na lista de aparelhos da conta (atualiza a cada 10 min no máximo)
+    const dev = deviceId();
     S.devices = S.devices || {};
-    const me = S.devices[sync.id];
-    if (!me || me.n !== deviceName() || Date.now() - me.t > 10 * 60000) S.devices[sync.id] = { n: deviceName(), t: Date.now() };
-    const before = JSON.stringify(shared(S));
+    const me = S.devices[dev];
+    if (!me || me.n !== deviceName() || Date.now() - me.t > 10 * 60000) S.devices[dev] = { n: deviceName(), t: Date.now() };
+    const before = stable(shared(S));
     try {
-      if (!sync.gist) {
-        const list = await ghApi('/gists?per_page=100');
-        const found = list.find(g => g.files && g.files[SYNC_FILE]);
-        sync.gist = found ? found.id : (await ghApi('/gists', 'POST', { description: SYNC_DESC, public: false, files: { [SYNC_FILE]: { content: JSON.stringify(shared(S)) } } })).id;
-        saveSync();
+      for (let i = 0; ; i++) {
+        const { data: remote, time } = await cloudGet();
+        if (!acc) return;
+        if (remote) {
+          const M = mergeState(S, remote, syncBase);
+          Object.keys(M).forEach(k => { S[k] = M[k]; });
+          try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {}
+        }
+        const now = shared(S);
+        if ((remote && same(now, remote)) || await cloudPut(now, time)) { syncBase = clone(now); break; }
+        if (i >= 3) throw cloudError('CONFLICT', 409);
       }
-      const g = await ghApi('/gists/' + sync.gist), f = g.files && g.files[SYNC_FILE];
-      if (!sync) return;
-      const remote = f ? JSON.parse(f.truncated ? await (await fetch(f.raw_url, { cache: 'no-store' })).text() : f.content) : null;
-      if (remote) {
-        const M = mergeState(S, remote, syncBase);
-        Object.keys(M).forEach(k => { S[k] = M[k]; });
-        try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {}
-      }
-      const now = shared(S);
-      if (!remote || !same(now, remote)) await ghApi('/gists/' + sync.gist, 'PATCH', { files: { [SYNC_FILE]: { content: JSON.stringify(now) } } });
-      syncBase = JSON.parse(JSON.stringify(now)); sync.last = Date.now(); sync.err = ''; saveSync();
-      if (before !== JSON.stringify(shared(S))) {
+      if (!acc) return;
+      acc.last = Date.now(); acc.err = ''; saveAcc();
+      if (before !== stable(shared(S))) {
         updateTop(); const h = location.hash.slice(1) || '/';
         if (['/', '/profile', '/review'].includes(h)) router();
         if (S.onboarded) $$('.modal-back.onb').forEach(m => m.remove());
       } else if (manual === true && location.hash === '#/profile') router();
       if (manual === true) toast('Progresso sincronizado ✓');
     } catch (e) {
-      if (!sync) return; // desconectado no meio do caminho
-      const err = e.status === 401 ? 'O código do GitHub não vale mais (expirou ou foi apagado). Gere outro e conecte de novo.'
-        : e.status === 403 || e.status === 404 && !sync.gist ? 'O código do GitHub precisa ter a opção “gist” marcada.' : 'Não consegui falar com o GitHub agora. Tento de novo mais tarde.';
-      if (e.status === 404 && sync.gist) { sync.gist = ''; syncBase = null; } // arquivo apagado no GitHub: recria na próxima vez
-      if (manual === true || (err !== sync.err && e.status)) toast('Sincronização: ' + err);
-      sync.err = err; saveSync();
+      if (!acc) return; // saiu da conta no meio do caminho
+      if (SESSION_GONE.includes(e.code)) { const msg = AUTH_ERR[e.code]; accOut(); toast(msg); if (location.hash === '#/profile') router(); return; }
+      const err = e.status === 401 || e.status === 403 ? 'O servidor recusou o acesso. Saia e entre de novo na conta.' : 'Não consegui falar com o servidor agora. Tento de novo mais tarde.';
+      if (manual === true || (err !== acc.err && e.status)) toast('Sincronização: ' + err);
+      acc.err = err; saveAcc();
     } finally { syncBusy = false; if (syncDirty) syncSoon(); }
   }
-  async function syncConnect(token) {
-    sync = { token: token.trim(), gist: '', last: 0, err: '' }; syncBase = null;
-    try { await ghApi('/user'); } catch (e) {
-      sync = null; toast(e.status === 401 ? 'Código inválido. Copie de novo o código que começa com ghp_.' : 'Não consegui falar com o GitHub. Verifique a internet.'); return;
-    }
-    saveSync(); await syncNow(true); router();
+  async function accEnter(kind, email, pass) {
+    const j = await authApi(kind === 'up' ? 'signUp' : 'signInWithPassword', { email, password: pass, returnSecureToken: true });
+    acc = {}; syncBase = null; setSession(j);
+    try { localStorage.setItem(ACC + '.email', acc.email); } catch (e) {}
+    await syncNow(true);
   }
-  function syncOff() { sync = null; syncBase = null; saveSync(); }
+  function accOut() { acc = null; syncBase = null; saveAcc(); }
   function ago(t) { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'agora há pouco' : m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.round(m / 60)} h` : `há ${Math.round(m / 1440)} dia(s)`; }
   function deviceName() { const u = navigator.userAgent; return /iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1) ? 'iPad' : /iPhone/.test(u) ? 'iPhone' : /Android/.test(u) ? 'Android' : 'PC'; }
-  function syncCard() {
-    const devs = Object.entries(S.devices || {}).sort((a, b) => b[1].t - a[1].t);
-    if (sync) return `<div class="card" id="sync-card"><h3>🔄 Sincronizar aparelhos</h3>
-      <p style="margin-top:0">✅ Conectado. ${sync.last ? `Última sincronização: <b>${ago(sync.last)}</b>.` : 'Sincronizando…'}</p>${sync.err ? `<div class="warn">${esc(sync.err)}</div>` : ''}
-      ${devs.length ? `<p style="margin-bottom:4px"><b>Aparelhos conectados:</b></p><ul class="sync-devs">${devs.map(([id, d]) => `<li>${/PC/.test(d.n) ? '💻' : '📱'} <b>${esc(d.n)}</b>${id === sync.id ? ' (este)' : ''} · visto ${ago(d.t)}</li>`).join('')}</ul>
-      ${devs.length < 2 ? `<div class="warn">Só este aparelho está conectado. Faça a conexão também no outro aparelho (PC ou iPad) para o progresso ficar igual nos dois.</div>` : ''}` : ''}
-      <p class="muted">Aulas, XP, revisões e sequência de dias se juntam sozinhos entre os aparelhos conectados sempre que você abre o app ou estuda com internet. Tema, voz e velocidade ficam separados em cada aparelho.</p>
-      <div class="row"><button class="btn small" id="sync-now">Sincronizar agora</button><button class="btn small ghost" id="sync-off">Desconectar este aparelho</button></div></div>`;
-    const note = encodeURIComponent(`Michi ${deviceName()} ${todayKey()} ${new Date().toTimeString().slice(0, 5)}`);
-    return `<div class="card" id="sync-card"><h3>🔄 Sincronizar aparelhos (PC ⇄ iPad)</h3>
-      <p class="muted" style="margin-top:0">Para estudar no PC, no iPad e no celular com o mesmo progresso. Ele fica guardado num arquivo secreto na sua conta do GitHub, de graça. Faça isto uma vez em cada aparelho:</p>
-      <ol class="sync-steps"><li>Abra <a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=${note}" target="_blank" rel="noopener">esta página do GitHub</a> e entre na sua conta.</li>
-      <li>Em <b>Expiration</b>, escolha <b>No expiration</b>. Deixe marcada só a opção <b>gist</b> (ela já vem marcada) e toque em <b>Generate token</b>, no fim da página.</li>
-      <li>Copie o código que aparece (começa com <code>ghp_</code>), volte aqui, cole abaixo e toque em <b>Conectar</b>.</li></ol>
-      <div class="sync-row"><input id="sync-token" class="search" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cole aqui o código ghp_…"><button class="btn small" id="sync-on">Conectar</button></div>
-      <p class="muted" style="margin-bottom:0;font-size:13px">O código só dá acesso aos seus Gists (anotações do GitHub), não ao resto da conta, e fica guardado apenas neste aparelho. No outro aparelho, gere um código do mesmo jeito: o Michi encontra o mesmo progresso sozinho.</p></div>`;
+  // Identidade fixa deste aparelho/navegador (continua a mesma ao sair e entrar de novo na conta)
+  function deviceId() {
+    let id = ''; try { id = localStorage.getItem('michi.device') || ''; } catch (e) {}
+    if (!id) { id = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('michi.device', id); } catch (e) {} }
+    return id;
   }
-  function bindSyncCard() {
-    const on = $('#sync-on'), now = $('#sync-now'), off = $('#sync-off');
-    if (on) on.onclick = () => { const t = $('#sync-token').value.trim(); if (!/^(ghp_|github_pat_)\w{20,}$/.test(t)) { toast('Cole o código inteiro (começa com ghp_).'); return; } on.disabled = true; on.textContent = 'Conectando…'; syncConnect(t).finally(() => { if (on.isConnected) { on.disabled = false; on.textContent = 'Conectar'; } }); };
-    if (now) now.onclick = () => { now.disabled = true; now.textContent = 'Sincronizando…'; syncNow(true).finally(() => { if (now.isConnected) router(); }); };
-    if (off) off.onclick = () => { if (confirm('Desconectar este aparelho? O progresso continua salvo aqui e na sua conta do GitHub.')) { syncOff(); toast('Aparelho desconectado.'); router(); } };
+  function accountCard() {
+    if (!cloudReady) return `<div class="card" id="acc-card"><h3>🔐 Conta Michi</h3><p class="muted" style="margin:0">As contas estão sendo ativadas. Em breve você vai poder entrar e usar o mesmo progresso em qualquer aparelho.</p></div>`;
+    if (acc) {
+      const seen = {}, devs = Object.entries(S.devices || {}).sort((a, b) => b[1].t - a[1].t)
+        .filter(([id, d]) => { const keep = !seen[d.n] || id === deviceId(); seen[d.n] = 1; return keep; });
+      return `<div class="card" id="acc-card"><h3>🔐 Conta Michi</h3>
+        <p style="margin-top:0">✅ Conectado como <b>${esc(acc.email)}</b>.<br><span class="muted">${acc.last ? `Última sincronização: ${ago(acc.last)}.` : 'Sincronizando…'}</span></p>${acc.err ? `<div class="warn">${esc(acc.err)}</div>` : ''}
+        ${devs.length ? `<p style="margin-bottom:4px"><b>Aparelhos usando esta conta:</b></p><ul class="sync-devs">${devs.map(([id, d]) => `<li>${/PC/.test(d.n) ? '💻' : '📱'} <b>${esc(d.n)}</b>${id === deviceId() ? ' (este)' : ''} · visto ${ago(d.t)}</li>`).join('')}</ul>` : ''}
+        <p class="muted">Aulas, XP, revisões e sequência de dias ficam iguais em todos os aparelhos em que você entrar com esta conta. Tema, voz e velocidade ficam separados em cada aparelho.</p>
+        <div class="row"><button class="btn small" id="acc-sync">Sincronizar agora</button><button class="btn small ghost" id="acc-out">Sair da conta</button></div></div>`;
+    }
+    let email = ''; try { email = localStorage.getItem(ACC + '.email') || ''; } catch (e) {}
+    return `<div class="card" id="acc-card"><h3>🔐 Conta Michi: use em qualquer aparelho</h3>
+      <p class="muted" style="margin-top:0">Crie uma conta grátis (só e-mail e senha) e entre com ela no PC, no iPad, no celular ou em qualquer navegador. O progresso fica igual em todos e não se perde se você trocar de aparelho.</p>
+      <form id="acc-form" class="acc-form">
+        <input class="search" id="acc-email" type="email" name="email" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="Seu e-mail" value="${esc(email)}">
+        <input class="search" id="acc-pass" type="password" name="password" autocomplete="current-password" placeholder="Senha (mínimo 6 caracteres)">
+        <div class="row"><button class="btn small" type="submit" data-k="in">Entrar</button><button class="btn small blue" type="submit" data-k="up">Criar conta</button><button class="btn small ghost" type="button" id="acc-forgot">Esqueci a senha</button></div>
+      </form>
+      <p class="muted" style="margin-bottom:0;font-size:13px">Primeira vez? Toque em <b>Criar conta</b> no aparelho onde você já estudou. Nos outros aparelhos, toque em <b>Entrar</b> com o mesmo e-mail e senha.</p></div>`;
   }
+  function bindAccountCard() {
+    const form = $('#acc-form'), sync = $('#acc-sync'), out = $('#acc-out'), forgot = $('#acc-forgot');
+    if (form) {
+      let kind = 'in';
+      $$('[data-k]', form).forEach(b => b.onclick = () => { kind = b.dataset.k; });
+      form.onsubmit = e => {
+        e.preventDefault();
+        const email = $('#acc-email').value.trim(), pass = $('#acc-pass').value;
+        if (!email) { toast(AUTH_ERR.MISSING_EMAIL); return; }
+        if (pass.length < 6) { toast(AUTH_ERR.WEAK_PASSWORD); return; }
+        const btns = $$('button', form); btns.forEach(b => { b.disabled = true; });
+        accEnter(kind, email, pass).then(() => { toast(kind === 'up' ? 'Conta criada! Seu progresso agora fica salvo na nuvem.' : 'Pronto! Você entrou na sua conta.'); router(); })
+          .catch(err => { toast(AUTH_ERR[err.code] || 'Não consegui falar com o servidor. Verifique a internet e tente de novo.'); if (form.isConnected) btns.forEach(b => { b.disabled = false; }); });
+      };
+    }
+    if (forgot) forgot.onclick = () => {
+      const email = $('#acc-email').value.trim(); if (!email) { toast('Digite seu e-mail primeiro.'); return; }
+      authApi('sendOobCode', { requestType: 'PASSWORD_RESET', email }, { 'X-Firebase-Locale': 'pt-BR' })
+        .then(() => toast('Enviei um e-mail para criar uma senha nova. Olhe também o spam.'))
+        .catch(err => toast(AUTH_ERR[err.code] || 'Não consegui enviar agora. Tente de novo.'));
+    };
+    if (sync) sync.onclick = () => { sync.disabled = true; sync.textContent = 'Sincronizando…'; syncNow(true).finally(() => { if (sync.isConnected) router(); }); };
+    if (out) out.onclick = () => { if (confirm('Sair da conta neste aparelho? O progresso continua salvo aqui e na sua conta.')) { syncNow().finally(() => { accOut(); toast('Você saiu da conta.'); router(); }); } };
+  }
+  // Lembrete na tela inicial para quem ainda não tem conta
+  function accountHint() {
+    let off = false; try { off = !!localStorage.getItem(ACC + '.hintOff'); } catch (e) {}
+    if (!cloudReady || acc || off) return '';
+    return `<div class="card acc-hint"><b>🔐 Salve seu progresso na nuvem</b><p class="muted" style="margin:4px 0 10px">Crie uma conta grátis e continue de onde parou no PC, no iPad ou no celular.</p>
+      <div class="row"><a class="btn small" href="#/profile" id="acc-hint-go">Criar conta ou entrar</a><button class="btn small ghost" id="acc-hint-off">Agora não</button></div></div>`;
+  }
+  function bindAccountHint() {
+    const off = $('#acc-hint-off'), go2 = $('#acc-hint-go');
+    if (off) off.onclick = () => { try { localStorage.setItem(ACC + '.hintOff', '1'); } catch (e) {} off.closest('.acc-hint').remove(); };
+    if (go2) go2.onclick = () => setTimeout(focusAccount, 150);
+  }
+  function focusAccount() { const c = $('#acc-card'); if (c) { c.scrollIntoView({ behavior: 'smooth' }); const t = $('#acc-email'); if (t && !t.value) t.focus({ preventScroll: true }); else if ($('#acc-pass')) $('#acc-pass').focus({ preventScroll: true }); } }
   document.addEventListener('visibilitychange', () => {
-    if (!sync) return;
+    if (!acc) return;
     if (document.visibilityState === 'hidden') { if (syncDirty) syncNow(); }
-    else if (syncDirty || Date.now() - (sync.last || 0) > 30000) syncNow(); // voltou ao app: puxa o que foi feito no outro aparelho
+    else if (syncDirty || Date.now() - (acc.last || 0) > 30000) syncNow(); // voltou ao app: puxa o que foi feito no outro aparelho
   });
   window.addEventListener('online', () => syncNow());
 
@@ -1328,5 +1415,5 @@
   load(); applySettings(); updateTop();
   router();
   if (!S.onboarded) onboarding();
-  if (sync) syncNow();
+  if (acc) syncNow();
 })();

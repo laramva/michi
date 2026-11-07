@@ -364,3 +364,6 @@ textarea.wput { display: block; width: 100%; max-width: none; margin-top: 6px; f
 .sync-row .btn { flex: none; }
 .sync-devs { list-style: none; padding: 0; margin: 0 0 10px; }
 .sync-devs li { padding: 4px 0; }
+.acc-form .search { margin: 0 0 8px; }
+.acc-form .row { margin-top: 4px; }
+.acc-hint { border-color: var(--blue, #1cb0f6); }
