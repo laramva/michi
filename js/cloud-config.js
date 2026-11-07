@@ -2,6 +2,6 @@
 // Estes dois valores são públicos por natureza (ficam em qualquer app web que usa Firebase); a
 // proteção vem das regras do Firestore, que só deixam cada pessoa ler e gravar o próprio progresso.
 window.MICHI_CLOUD = {
-  apiKey: '',
-  projectId: ''
+  apiKey: 'AIzaSyBx5GR9uEm-OwPovOM6X1e2Hc6jwmVYoxc',
+  projectId: 'michi-japones'
 };

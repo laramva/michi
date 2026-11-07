@@ -1,7 +1,7 @@
 // Michi 道 — app principal (sem dependências, funciona offline).
 (function () {
   'use strict';
-  const APP_VERSION = '1.4.0';
+  const APP_VERSION = '1.4.1';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const app = $('#app');
